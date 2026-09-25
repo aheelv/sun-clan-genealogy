@@ -4,6 +4,12 @@
 
 > **零构建**：原生 ES Modules，无打包器、无 CDN 依赖。双击 `index.html` 即可使用。
 
+**在线访问**：<https://aheelv.github.io/sun-clan-genealogy/>（GitHub Pages）
+
+<img src="qr-site.png" alt="扫码访问孙氏族谱站点" width="300">
+
+<sub>扫码在手机上打开 · 图片由 `python tools/make_qr.py` 生成，改地址后重新生成即可</sub>
+
 ---
 
 ## 快速开始
@@ -148,6 +154,7 @@ npm test
 | `npm run check:imports` | 仅检查模块导入 / 导出完整性 |
 | `npm run extract` | 重新转录原始资料 |
 | `npm run build:data` | 重新建模并打包种子 |
+| `npm run qr` | 生成站点访问二维码卡片（`qr-site.png`，改地址后重跑即可） |
 
 **渲染自检需要 jsdom**（开发期依赖，不入站、不污染项目目录）：
 

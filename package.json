@@ -12,6 +12,7 @@
     "test:logic": "node tools/smoke_test.mjs",
     "test:render": "node tools/render_test.mjs",
     "test": "python tools/verify_data.py --strict && node tools/check_imports.mjs && node tools/smoke_test.mjs && node tools/render_test.mjs",
-    "serve": "node tools/serve.mjs"
+    "serve": "node tools/serve.mjs",
+    "qr": "python tools/make_qr.py"
   }
 }
