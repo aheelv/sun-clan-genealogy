@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "孙氏族谱 · 中秋主题静态族谱站点（无构建步骤；package.json 仅用于 Node 侧工具与自检脚本）",
+  "description": "孙氏族谱 · 静态族谱站点（无构建步骤；package.json 仅用于 Node 侧工具与自检脚本）",
   "scripts": {
     "extract": "python tools/extract_xlsx.py && python tools/extract_doc.py",
     "build:data": "python tools/build_data.py && python tools/emit_seed.py",

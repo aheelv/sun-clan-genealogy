@@ -6,6 +6,7 @@ import { h, esc } from '../core/dom.js';
 import { GEN_LABELS, CONFIDENCE, EVIDENCE, NOTE_TYPE, PERSON_STATUS } from '../core/schema.js';
 import { branchMeta } from '../domain/branch.js';
 import { displayName } from '../domain/person.js';
+import { VIEW_META, VIEW_ICONS } from './viewMeta.js';
 
 export const badge = (text, tone = 'muted', title) =>
   h('span', { class: `badge badge--${tone}`, title: title || undefined }, text);
@@ -113,4 +114,59 @@ export function severityPill(level) {
   return badge(label, tone);
 }
 
-export { displayName, GEN_LABELS, NOTE_TYPE, esc };
+/* ══ 页面级快捷跳转 ═══════════════════════════════════════ */
+
+/** 单个跳转按钮：图标 + 名称 + 一句用途，避免只给图标让人猜 */
+function jumpItem({ key, label, icon, hint, params }, onNavigate) {
+  return h('button', {
+    class: 'pagejump__item',
+    dataset: { key },
+    title: hint ? `${label} — ${hint}` : label,
+    onClick: () => onNavigate(key, params),
+  },
+  h('span', { class: 'pagejump__icon', html: `<svg viewBox="0 0 32 32" aria-hidden="true">${VIEW_ICONS[icon] || ''}</svg>` }),
+  h('span', { class: 'pagejump__text' },
+    h('span', { class: 'pagejump__name' }, label),
+    hint ? h('span', { class: 'pagejump__hint' }, hint) : null));
+}
+
+/**
+ * 页面底部的「快速跳转」条。
+ *
+ * 为什么需要它：顶栏导航在长页面上够不着——谱系图、名录、校验中心都可能是
+ * 数千像素的滚动页，读到末尾想换页只能先滚回顶部。故在每个视图底部固定给一条
+ * 跳转条，列出**除当前页外**的全部视图（含用途说明），并附「回到顶部」。
+ *
+ * @param {string} current    当前视图键（自身不再列出）
+ * @param {Function} onNavigate  app.js 的 go(key, params)
+ * @param {Array}  extra      对某个视图的**上下文改写**：{ key, hint?, params? }
+ * @param {string} note       右侧补充说明
+ *
+ * `extra` 的语义是「改写」而非「追加」：若按追加处理，同一视图会在条上出现两次
+ * （校验页既有「名录」又有「名录·只看推导待核」）。故按 key 合并覆盖，并保持
+ * VIEW_META 的次序。名称与图标一律取自 VIEW_META，不随上下文改——
+ * 跳转条的可用性全在「一眼认出目标页」，与顶栏同名同图才认得出来；
+ * 上下文的差别只体现在用途说明（hint）与跳转参数（params）上。
+ */
+export function pageJump({ current, onNavigate, extra = [], note } = {}) {
+  const override = new Map(extra.filter((x) => x && x.key).map((x) => [x.key, x]));
+  const items = VIEW_META
+    .filter((v) => v.key !== current)
+    .map((v) => {
+      const o = override.get(v.key);
+      return o ? { ...v, hint: o.hint ?? v.hint, params: o.params } : v;
+    });
+  return h('nav', { class: 'pagejump', 'aria-label': '快速跳转到其他页面' },
+    h('div', { class: 'pagejump__head' },
+      h('span', { class: 'pagejump__label' }, '快速跳转'),
+      note ? h('span', { class: 't-xs t-faint' }, note) : null,
+      h('div', { class: 'spacer' }),
+      h('button', {
+        class: 'btn btn--sm pagejump__top',
+        onClick: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+      }, '回到顶部 ↑')),
+    h('div', { class: 'pagejump__items' },
+      ...items.map((v) => jumpItem(v, onNavigate))));
+}
+
+export { displayName, GEN_LABELS, NOTE_TYPE, esc, VIEW_META, VIEW_ICONS };

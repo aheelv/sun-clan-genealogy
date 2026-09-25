@@ -2,11 +2,16 @@
  * render_test.mjs — 端到端渲染自检（jsdom）
  * ---------------------------------------------------------------
  * 在真实 DOM 实现中加载 index.html，导入 app.js，验证：
- *   · 启动无异常，导航与视图根节点完成渲染
+ *   · 启动无异常，导航与视图根节点完成渲染；页面标题为「孙氏族谱」
  *   · 六个视图（概览/谱系图/名录/文献/校验/权限）均可切换并产出内容；默认落点为「概览」
  *   · 谱系图：SVG 图形真实产出（世代带、连线、节点、过继弧线）、
  *             节点点击联动档案栏、深度/方向/模式切换、过继信息可读
- *   · 检索、关注人物、角色切换、主题切换等关键交互生效
+ *   · 谱系图触屏：按图形是否纵向溢出动态接管手势，放大后单指横纵自由平移
+ *   · 名录：默认「世系树」并展开全部世代；检索自动切列表并收敛结果
+ *   · 首页：原籍介绍可展开《前言》全文；「使用说明」弹窗覆盖各模块；
+ *           入口按角色收敛（访客把治理类模块收进「其他权限」折叠组）
+ *   · 各页底部「快速跳转」条：六视图全覆盖、不列自身、可实际跨页导航
+ *   · 检索、角色切换（含口令闸门）、主题切换等关键交互生效
  *   · 不同角色下的写操作按钮可用性符合权限矩阵
  *
  * 依赖 jsdom（仅开发期，不入站）：
@@ -133,6 +138,13 @@ ok(currentViewKey() === 'home', `默认进入「概览」（hash=${currentViewKe
 ok($$('#nav .nav-item').map((b) => b.dataset.key).slice(0, 2).join(',') === 'home,chart',
   `导航前两位为 概览→谱系图（实际 ${$$('#nav .nav-item').map((b) => b.dataset.key).slice(0, 2).join('→')}）`);
 ok($('#nav .nav-item.is-active')?.dataset.key === 'home', '默认高亮项为「概览」');
+
+/* 站名约定：页面标题仅为「孙氏族谱」，不带「中秋」字样。
+   注：作者署名原文中的「中秋」属作者自撰内容，不在收敛范围内。 */
+const titleTag = ((html.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim();
+ok(titleTag === '孙氏族谱', `页面标题为「孙氏族谱」（实际「${titleTag}」）`);
+const descTag = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
+ok(!/中秋/.test(titleTag) && !/中秋/.test(descTag), '标题与描述中不含「中秋」字样');
 
 /* ── 3. 六视图切换（顺序与导航一致：概览 → 谱系图 → …） ── */
 section('视图切换');
@@ -364,9 +376,108 @@ if (zoomIn) {
   ok($('#view-root .gc-root').getAttribute('transform') !== g0, '缩放按钮改变了视图变换');
 }
 
+/* ── 5b. 谱系图：触屏平移（放大后仍可自由拖动） ─────────── */
+/* 曾经的缺陷：`.chart-canvas` 固定 touch-action: pan-y，纵向手势一旦被判给
+   页面滚动，后续 touchmove 变为不可取消，preventDefault 失效 —— 表现就是
+   「手机上放大谱系图后拖不动」。现在按图形是否纵向溢出动态切换 touch-action。 */
+section('谱系图触屏平移');
+{
+  const canvasEl = $('#view-root .chart-canvas');
+  /* 每次 renderGraph 都会重建 <svg>，旧引用会变成游离节点——
+     事件必须派发到**当前**的 svg 上，故一律现取。 */
+  const svgOf = () => $('#view-root .gc-svg');
+  const readTf = () => {
+    const m = /translate\(([-\d.eE]+)[ ,]([-\d.eE]+)\)\s*scale\(([-\d.eE]+)\)/
+      .exec($('#view-root .gc-root')?.getAttribute('transform') || '');
+    return m ? { tx: +m[1], ty: +m[2], scale: +m[3] } : null;
+  };
+  const mkTouch = (type, pts) => {
+    const e = new window.Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'touches', { value: pts, configurable: true });
+    Object.defineProperty(e, 'changedTouches', { value: pts, configurable: true });
+    return e;
+  };
+  const drag = (from, to) => {
+    const svg = svgOf();
+    svg.dispatchEvent(mkTouch('touchstart', [from]));
+    svg.dispatchEvent(mkTouch('touchmove', [to]));
+    const tf = readTf();
+    svg.dispatchEvent(mkTouch('touchend', []));
+    return tf;
+  };
+  const chartDepth = $$('#view-root .chart-toolbar select')[1];
+  const fitBtn = $$('#view-root .chart-toolbar button').find((b) => b.textContent.trim() === '适应');
+
+  // (1) 未溢出：横向可平移，纵向交还页面滚动
+  chartDepth.value = '2';
+  chartDepth.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick();
+  fitBtn?.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await tick();
+  ok(canvasEl.style.touchAction === 'pan-y',
+    `图形未纵向溢出时保留页面纵向滚动（touch-action=${canvasEl.style.touchAction || '（未设置）'}）`);
+  const hBefore = readTf();
+  const hAfter = drag({ clientX: 300, clientY: 300 }, { clientX: 430, clientY: 300 });
+  ok(hAfter && hBefore && hAfter.tx !== hBefore.tx,
+    `未溢出时横向拖动可平移（Δtx=${hBefore && hAfter ? (hAfter.tx - hBefore.tx).toFixed(1) : '—'}）`);
+  const vBefore = readTf();
+  const vAfter = drag({ clientX: 300, clientY: 300 }, { clientX: 300, clientY: 430 });
+  ok(vAfter && vBefore && vAfter.ty === vBefore.ty, '未溢出时纵向拖动不平移图形（让位给页面滚动）');
+
+  // (2) 放大到纵向溢出：纵向手势归图形，横纵自由平移
+  chartDepth.value = 'Infinity';
+  chartDepth.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick();
+  const zoomUp = $$('#view-root .chart-toolbar button').find((b) => b.textContent.trim() === '＋');
+  for (let i = 0; i < 4; i += 1) zoomUp?.dispatchEvent(new window.Event('click', { bubbles: true }));
+  await tick();
+  ok(canvasEl.style.touchAction === 'none',
+    `图形纵向溢出后画布接管手势（touch-action=${canvasEl.style.touchAction || '（未设置）'}）`);
+
+  const tp2 = readTf();
+  const tp3 = drag({ clientX: 300, clientY: 300 }, { clientX: 300, clientY: 430 });
+  ok(tp3 && tp2 && tp3.ty !== tp2.ty,
+    `放大溢出后纵向拖动可平移图形（Δty=${tp2 && tp3 ? (tp3.ty - tp2.ty).toFixed(1) : '—'}）`);
+
+  // 手势一经锁定，斜向拖动应横纵同时生效（不再被轴锁限制）
+  const svgNow = svgOf();
+  svgNow.dispatchEvent(mkTouch('touchstart', [{ clientX: 300, clientY: 300 }]));
+  svgNow.dispatchEvent(mkTouch('touchmove', [{ clientX: 330, clientY: 360 }]));
+  const tpA = readTf();
+  svgNow.dispatchEvent(mkTouch('touchmove', [{ clientX: 400, clientY: 500 }]));
+  const tpB = readTf();
+  ok(tpA && tpB && tpB.tx !== tpA.tx && tpB.ty !== tpA.ty, '手势锁定后斜向拖动横纵同时平移');
+  svgNow.dispatchEvent(mkTouch('touchend', []));
+
+  // 复原到默认展开始祖以下 2 代，避免影响后续断言
+  chartDepth.value = '2';
+  chartDepth.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await tick();
+}
+
+/* ── 5c. 名录：默认「世系树」并展开全部世代 ────────────── */
+section('名录默认视图');
+app.go('explore');
+await tick();
+const segBtns = $$('#view-root .seg button');
+ok(segBtns[1]?.classList.contains('is-on') && !segBtns[0]?.classList.contains('is-on'),
+  `默认选中「${segBtns[1]?.textContent.trim()}」`);
+const exploreCols = $$('#view-root .split > div')[0];
+ok(exploreCols?.children[0]?.hidden === true, '列表视图默认隐藏');
+ok(exploreCols?.children[1]?.hidden === false, '世系树默认显示');
+const treeNodes = $$('#view-root .tnode');
+ok(treeNodes.length > 1000, `世系树默认展开渲染 ${treeNodes.length} 个节点`);
+const shownGens = new Set($$('#view-root .tnode__meta')
+  .map((n) => n.textContent.trim())
+  .filter((t) => /^[一二三四五六七八九十]+世$/.test(t)));
+const totalGens = new Set(app.store.persons.map((p) => p.gen)).size;
+ok(shownGens.size >= totalGens,
+  `默认展开覆盖 ${shownGens.size} 个世代（全谱 ${totalGens} 世）`);
+const treeBtns = $$('#view-root .tree, #view-root .card__head button').map((b) => b.textContent.trim());
+ok(treeBtns.includes('全部展开') && treeBtns.includes('全部折叠'), '世系树提供「全部展开／全部折叠」');
+
 /* ── 6. 名录检索交互 ───────────────────────────────────── */
 section('名录检索交互');
-app.go('explore');
 const search = $('#view-root input.input--search');
 ok(!!search, '存在检索输入框');
 const beforeCount = $$('#view-root .pitem').length;
@@ -562,11 +673,99 @@ const entryText = entries.map((b) => b.textContent).join('|');
 for (const mark of ['谱系图', '名录', '文献', '校验', '凡字', '权限']) {
   ok(entryText.includes(mark), `入口覆盖「${mark}」`);
 }
+/* 「谱牒文献」须排在该区域最顶部：它是本站的原始史料，应先于一切派生视图被看到 */
+const firstEntry = entries[0]?.textContent || '';
+ok(/谱牒文献/.test(firstEntry),
+  `「从这里开始」首项为「谱牒文献」（实际首项：${firstEntry.trim().slice(0, 12)}）`);
+ok(!/谱系图|名录检索/.test(firstEntry), '谱系图/名录不再占据首位');
 ok($$('#view-root .entry__icon svg').length >= 6, '入口卡均带图标');
 ok(/孙智广/.test(root.textContent), '首页含作者「孙智广」署名');
 ok(/软件化改造说明/.test(root.textContent), '首页含「软件化改造说明」区块');
 ok(!!$('#view-root .authorcard') && $$('#view-root .authorcard__stats .stat').length >= 4,
   `软件化改造说明以作者卡呈现，附 ${$$('#view-root .authorcard__stats .stat').length} 项改造要点`);
+
+/* ── 11.2b 原籍介绍（可展开全文） ──────────────────────── */
+/* 原籍介绍原先只有一句摘要。现从《前言》补入「从哪来、怎么落脚」的完整三段，
+   默认显示长摘要，点击展开全文。 */
+section('原籍介绍');
+const originBox = $('#view-root #hero-origin');
+const originBtn = $('#view-root .hero__expand');
+ok(!!originBtn, '英雄区提供「展开原籍全文」按钮');
+ok(originBox?.hidden === true, '原籍全文默认收起');
+ok(/文登县/.test(root.textContent) && /孙家洼/.test(root.textContent),
+  '默认摘要已含原籍地望（山东登州府文登县孙家洼）');
+/* 曾经的「内容过短」根因：摘要走 excerpt()，遇第一个句号即收尾，
+   只剩「我孙氏（汉族）原籍山东省登州府文登县孙家洼（小地名南桥子白果树屯）。」一句。
+   现按句累加，故断言摘要长度与「迁居经过」关键词。 */
+const leadText = $('#view-root .hero__lead')?.textContent || '';
+ok(/南桥子/.test(leadText) && /白果树/.test(leadText), '默认摘要保留小地名「南桥子白果树屯」');
+ok(/康熙元年/.test(leadText), '默认摘要不止第一句，已含迁居经过');
+ok(leadText.length >= 90, `默认摘要 ${leadText.length} 字（原先仅一句约 34 字）`);
+originBtn?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+ok(originBox?.hidden === false, '点击后展开原籍全文');
+ok(originBtn?.getAttribute('aria-expanded') === 'true', '按钮同步 aria-expanded');
+const originText = originBox?.textContent || '';
+for (const mark of ['南桥子', '白果树', '康熙元年', '徐文友', '三道嘴子', '曲姓女', '海北始祖']) {
+  ok(originText.includes(mark), `原籍全文含「${mark}」`);
+}
+ok((originBox?.querySelectorAll('.doc-body p').length || 0) >= 3,
+  `原籍全文为 ${originBox?.querySelectorAll('.doc-body p').length} 段原文（期望 ≥3）`);
+originBtn?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+ok(originBox?.hidden === true, '再次点击可收起');
+
+/* ── 11.2c 使用说明 ────────────────────────────────────── */
+section('使用说明');
+const guideBtn = $$('#view-root .entry-actions button').find((b) => b.textContent.includes('使用说明'));
+ok(!!guideBtn, '「从这里开始」之后提供「使用说明」按钮');
+guideBtn?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+const guideModal = document.querySelector('.modal-overlay');
+ok(!!guideModal, '点击「使用说明」弹出说明对话框');
+const guideText = guideModal?.textContent || '';
+for (const mark of ['概览', '谱系图', '名录', '文献', '校验中心', '权限与数据']) {
+  ok(guideText.includes(mark), `使用说明覆盖「${mark}」模块`);
+}
+ok(/快捷键/.test(guideText), '使用说明含快捷键一节');
+ok((guideModal?.querySelectorAll('.guide__item').length || 0) >= 6,
+  `使用说明分 ${guideModal?.querySelectorAll('.guide__item').length} 节`);
+[...document.querySelectorAll('.modal-overlay .modal__footer button')]
+  .find((b) => b.textContent.trim() === '知道了')?.click();
+await tick();
+ok(!document.querySelector('.modal-overlay'), '说明对话框可关闭');
+
+/* ── 11.2d 访客权限显示收敛 ────────────────────────────── */
+/* 访客只保留必要模块；「校验中心」「权限与数据」等治理类模块
+   收进「其他权限」折叠组，而不是从界面上抹掉。 */
+section('访客权限显示');
+ok(!!$('#view-root .entry-others'), '访客角色下出现「其他权限」分组');
+ok($('#view-root .entry-others__body')?.hidden === true, '「其他权限」默认收起');
+ok($$('#view-root .entry-others .entry').length === 2,
+  `「其他权限」内含 ${$$('#view-root .entry-others .entry').length} 个模块（期望 2）`);
+const othersToggle = $('#view-root .entry-others__toggle');
+othersToggle?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+ok($('#view-root .entry-others__body')?.hidden === false, '点击后展开「其他权限」');
+ok(/校验中心/.test($('#view-root .entry-others')?.textContent || '')
+  && /权限与数据/.test($('#view-root .entry-others')?.textContent || ''),
+  '「校验中心」「权限与数据」均归入该分组');
+othersToggle?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+ok($('#view-root .entry-others__body')?.hidden === true, '再次点击收起');
+
+// 非访客：模块平铺，不做折叠（对其而言都是本职功能）
+Auth.unlockSession();
+roleSel.value = 'admin';
+roleSel.dispatchEvent(new window.Event('change'));
+await tick();
+ok(!$('#view-root .entry-others'), '非访客角色下不出现「其他权限」折叠组');
+ok($$('#view-root .entry').length === 6, `非访客平铺 ${$$('#view-root .entry').length} 张入口卡`);
+Auth.lockSession();
+roleSel.value = 'guest';
+roleSel.dispatchEvent(new window.Event('change'));
+await tick();
+ok(!!$('#view-root .entry-others'), '切回访客后重新折叠');
 
 /* ── 11.3 移动端底部导航 ───────────────────────────────── */
 section('移动端底部导航');
@@ -604,6 +803,53 @@ ok($$('#view-root .toc-list .toc-list__item').length > 0 || $$('#view-root .toc-
 ok(!/^\s*序号\s*$/m.test($('#view-root .toc-list')?.textContent || '  序号  '),
   '目录不再出现孤立的「序号」表头行');
 ok(/孙智广/.test(root.textContent), '文献页同样附作者软件化改造说明');
+
+/* ── 11.6 各页「快速跳转」条 ───────────────────────────── */
+/* 谱系图 / 名录 / 校验中心都是数千像素的长页，读到末尾时顶栏早已滚出视野。
+   故每个视图末尾固定一条跳转条：列出除当前页外的全部视图（5 项，含用途），
+   并附「回到顶部」。此处逐个视图验证，避免只在首页接了跳转条就算完成。 */
+section('页面快速跳转');
+const JUMP_LABEL = { home: '概览', chart: '谱系图', explore: '名录', docs: '文献', validate: '校验', admin: '权限' };
+for (const key of VIEW_KEYS) {
+  app.go(key);
+  await tick();
+  const bar = $('#view-root .pagejump');
+  ok(!!bar, `「${JUMP_LABEL[key]}」页底部有快速跳转条`);
+  if (!bar) continue;
+  const items = $$('#view-root .pagejump__item');
+  ok(items.length === VIEW_KEYS.length - 1,
+    `跳转项 ${items.length} 个（除当前页外共 ${VIEW_KEYS.length - 1} 个）`);
+  const jumpKeys = items.map((b) => b.dataset.key);
+  ok(!jumpKeys.includes(key), `跳转条不列当前页自身（${key}）`);
+  ok(VIEW_KEYS.every((k) => k === key || jumpKeys.includes(k)), '其余视图均可达');
+  ok(items.every((b) => (b.querySelector('.pagejump__icon svg')?.innerHTML || '').length > 20),
+    '每个跳转项均带图标');
+  ok(items.every((b) => /[\u4e00-\u9fa5]/.test(b.querySelector('.pagejump__name')?.textContent || '')),
+    '每个跳转项均带中文名称');
+  ok(!!$('#view-root .pagejump__top'), '跳转条含「回到顶部」');
+}
+
+// 实际点击可跨页跳转（跳转条必须真的能导航，而非只是摆设）
+app.go('home');
+await tick();
+$$('#view-root .pagejump__item').find((b) => b.dataset.key === 'chart')
+  ?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+ok(currentViewKey() === 'chart', '点击跳转项可切换视图', `→ 当前 ${currentViewKey()}`);
+
+// 校验中心 →「名录·只看推导待核」：带参跳转须落到已筛选的列表
+app.go('validate');
+await tick();
+const toInferred = $$('#view-root .pagejump__item').find((b) => b.dataset.key === 'explore');
+ok(!!toInferred && /推导/.test(toInferred.textContent), '校验页提供「名录·只看推导待核」直达项');
+toInferred?.dispatchEvent(new window.Event('click', { bubbles: true }));
+await tick();
+ok(currentViewKey() === 'explore', '带参跳转落到名录');
+const inferredChip = $$('#view-root .chip').find((c) => /仅看推导待核/.test(c.textContent));
+ok(inferredChip?.classList.contains('is-on') === true, '落地后「仅看推导待核」筛选已生效');
+const inferredCount = $$('#view-root .pitem').length;
+ok(inferredCount > 0 && inferredCount < app.store.persons.length,
+  `推导待核命中 ${inferredCount} / 全谱 ${app.store.persons.length} 人`);
 
 /* ── 12. 管理视图数据工具 ──────────────────────────────── */
 section('管理视图');

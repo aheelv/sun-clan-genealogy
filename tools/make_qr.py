@@ -3,7 +3,7 @@
 """
 tools/make_qr.py — 生成站点访问二维码卡片
 ---------------------------------------------------------------
-输出一张可直接分享／打印的 PNG：中秋意象 + 谱名 + 二维码 + 访问地址。
+输出一张可直接分享／打印的 PNG：月华意象 + 谱名 + 二维码 + 访问地址。
 配色取自站点主题 assets/css/theme.css 的调色板，视觉与站点一致。
 
 二维码采用 **深色模块 + 浅色底**（而非反相），因为绝大多数扫码器对
@@ -105,7 +105,7 @@ def main():
     probe = Image.new("RGB", (10, 10))
     pd = ImageDraw.Draw(probe)
     _, h_title = text_size(pd, "孙氏族谱", title_f)
-    _, h_sub = text_size(pd, "中秋主题静态族谱站点", sub_f)
+    _, h_sub = text_size(pd, "静态族谱站点", sub_f)
     _, h_tag = text_size(pd, "收录 1,752 人 · 14 世 · 31 页原谱", tag_f)
     _, h_url = text_size(pd, url, url_f)
     _, h_foot = text_size(pd, "手机相机扫码即可打开 · 无需安装", foot_f)
@@ -138,7 +138,7 @@ def main():
 
     # ── 谱名与说明 ──
     center_text(d, y_title, "孙氏族谱", title_f, INK_0)
-    center_text(d, y_sub, "中秋主题静态族谱站点", sub_f, INK_2)
+    center_text(d, y_sub, "静态族谱站点", sub_f, INK_2)
     center_text(d, y_tag, "收录 1,752 人 · 14 世 · 31 页原谱", tag_f, INK_3)
 
     # ── 分隔线：中间一枚菱形 ──

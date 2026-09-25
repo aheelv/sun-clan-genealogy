@@ -4,7 +4,7 @@
 
 import { h } from '../core/dom.js';
 import { GEN_CHARS } from '../core/schema.js';
-import { badge, card, genCharTable, sectionHead } from './components.js';
+import { badge, card, genCharTable, sectionHead, pageJump } from './components.js';
 import { docBlocks, excerpt } from './docBlocks.js';
 import { AUTHOR_NOTE } from '../data/authorNote.js';
 
@@ -124,6 +124,14 @@ export function renderDocs(seed, { onNavigate }) {
       '为保持史料原貌，正文中的生僻字注音（如「愆（qian 一声 耽误的意思）」）、'
       + '误字与口语化表述一律照录，未作校改；如需订正，请在「数据管理」中导出后另行标注。'),
   ]));
+
+  /* 本页是长文档（4,600 余字），读到末尾想查人得先滚回顶部；
+     故在文末给一条跳转条，并额外给「二十辈凡字」的定位提示。 */
+  root.appendChild(pageJump({
+    current: 'docs', onNavigate,
+    extra: [{ key: 'home', hint: '回到首页查看凡字表与支系规模' }],
+    note: '本页为原谱全文转录，可配合名录检索对照查阅',
+  }));
 
   return root;
 }

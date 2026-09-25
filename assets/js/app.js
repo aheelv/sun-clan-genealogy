@@ -21,6 +21,7 @@ import { renderDocs } from './ui/viewDocs.js';
 import { renderValidate } from './ui/viewValidate.js';
 import { renderAdmin } from './ui/viewAdmin.js';
 import { requestRoleSwitch } from './ui/roleGate.js';
+import { VIEW_META, VIEW_ICONS } from './ui/viewMeta.js';
 
 const store = createStore(SEED);
 /* 持久化的角色仅作「上次选择」的提示，不作为授权依据：
@@ -29,25 +30,24 @@ const auth = new Auth(Auth.restoreRole(store.loadRole()));
 
 /* ── 视图注册表 ─────────────────────────────────────────── */
 /* 「概览」置于首位并作为默认落点：进入站点先给出全谱概貌与导航；
- * 「谱系图」紧随其后，需要图形化全谱树时一键可达（快捷键 g）。 */
-/* 底部标签栏图标（内联 SVG path，无外部依赖）；与顶部导航共用同一份视图表 */
-const TAB_ICONS = {
-  chart: '<path d="M4 26h24M12 26V14M20 26V14M12 14V6M20 14V6M8 10h16" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
-  home: '<path d="M6 14l10-8 10 8v12H6z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M13 26v-7h6v7" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/>',
-  explore: '<circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M20 20l6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
-  docs: '<path d="M7 5h11l5 5v16H7z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M18 5v5h5M11 15h9M11 19h9" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
-  validate: '<path d="M6 6h20v20H6z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M10 15l4 4 8-8" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
-  admin: '<circle cx="16" cy="11" r="4.5" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M7 25c2-5 5-7 9-7s7 2 9 7" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+ * 「谱系图」紧随其后，需要图形化全谱树时一键可达（快捷键 g）。
+ *
+ * 次序 / 名称 / 图标一律取自 ui/viewMeta.js 的 VIEW_META（唯一来源），
+ * 顶部导航、底部标签栏与各页「快速跳转」条共用同一份，避免三处各写一套。
+ * 这里只补各视图的 render 闭包——它需要 store / auth，只能在装配点构造。 */
+const RENDERERS = {
+  home: () => renderHome(store, { seed: SEED, auth, onPick: pick, onNavigate: go }),
+  chart: () => createChartView(store, { auth, onPick: pick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail, onNavigate: go }),
+  explore: () => createExploreView(store, { auth, onPick: pick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail, onNavigate: go }),
+  docs: () => renderDocs(SEED, { onNavigate: go }),
+  validate: () => renderValidate(store, { auth, onPick: pick, seed: SEED, onNavigate: go }),
+  admin: () => renderAdmin(store, { auth, seed: SEED, onRoleChange: syncRoleUI, onDataChanged: () => refreshCurrent(), onNavigate: go }),
 };
 
-const VIEWS = [
-  { key: 'home', label: '概览', render: () => renderHome(store, { seed: SEED, onPick: pick, onNavigate: go }) },
-  { key: 'chart', label: '谱系图', render: () => createChartView(store, { auth, onPick: pick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail }) },
-  { key: 'explore', label: '名录', render: () => createExploreView(store, { auth, onPick: pick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail }) },
-  { key: 'docs', label: '文献', render: () => renderDocs(SEED, { onNavigate: go }) },
-  { key: 'validate', label: '校验', render: () => renderValidate(store, { auth, onPick: pick, seed: SEED }) },
-  { key: 'admin', label: '权限', render: () => renderAdmin(store, { auth, seed: SEED, onRoleChange: syncRoleUI, onDataChanged: () => refreshCurrent() }) },
-];
+const VIEWS = VIEW_META.map((m) => ({ ...m, render: RENDERERS[m.key] }));
+
+/* 底部标签栏图标与顶部导航共用同一份（VIEW_ICONS） */
+const TAB_ICONS = VIEW_ICONS;
 
 const cache = new Map();
 let currentKey = 'home';
@@ -74,11 +74,13 @@ function go(key, params) {
   clear(main);
   main.appendChild(node);
 
-  // 跨视图带参定位（首页检索 → 名录预填关键词；支系卡 → 名录按支系筛选）
-  // 必须在节点入 DOM 之后调用，否则视图内部的测量与刷新拿不到布局。
+  // 跨视图带参定位（首页检索 → 名录预填关键词；支系卡 → 名录按支系筛选；
+  // 校验中心 → 名录只看推导待核）。必须在节点入 DOM 之后调用，
+  // 否则视图内部的测量与刷新拿不到布局。
   if (params && typeof params === 'object') {
     if (params.q && node.__setQuery) node.__setQuery(params.q);
     if (params.branchId && node.__setBranch) node.__setBranch(params.branchId);
+    if (params.inferred && node.__setInferred) node.__setInferred();
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -209,8 +211,8 @@ function syncRoleUI(role) {
   if (roleSelect) roleSelect.value = role;
   const hint = $('#role-hint');
   if (hint) hint.textContent = ROLES[role]?.label || role;
-  // 权限变化后重建所有做权限判定的视图
-  for (const k of ['chart', 'explore', 'admin', 'validate']) cache.delete(k);
+  // 权限变化后重建所有做权限判定的视图（home 的模块入口也随角色收敛）
+  for (const k of ['home', 'chart', 'explore', 'admin', 'validate']) cache.delete(k);
   go(currentKey);
 }
 

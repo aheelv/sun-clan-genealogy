@@ -13,9 +13,19 @@
  *   点击节点     选中并展示档案（右侧栏）
  *   点击 +/−     折叠 / 展开该支
  *   滚轮         以指针为中心缩放
- *   拖拽         平移
+ *   拖拽         平移（桌面鼠标；触屏单指，放大后横纵皆可自由拖动）
+ *   双指捏合     触屏缩放
  *   适应 / ±     视图缩放控制
  *   双击节点     以该人为根重新展开
+ *
+ * 触屏平移的关键约束（踩过的坑）
+ *   `.chart-canvas` 默认 `touch-action: pan-y`，把纵向手势让给页面滚动。
+ *   一旦浏览器认定是纵向滚动，后续 touchmove 会变成**不可取消**，
+ *   此时在监听里 preventDefault() 已无效果——放大后图形超出画布却「拖不动」，
+ *   根因就在这里。故改为按图形是否纵向溢出**动态**切换 touch-action：
+ *     未溢出 → pan-y（保留页面滚动）
+ *     已溢出 → none （手势全归图形，横纵自由平移）
+ *   纵向是否溢出取决于当前缩放与布局尺寸，故每次变换后都要重新同步。
  *
  * 可读性设计
  *   · 世代背景带：每一代一条浅色横带并标注「N世」，纵向定位一目了然
@@ -28,6 +38,7 @@ import { h, s, clear, $, toast } from '../core/dom.js';
 import { GEN_LABELS } from '../core/schema.js';
 import { displayName } from '../domain/person.js';
 import { branchMeta } from '../domain/branch.js';
+import { pageJump } from './components.js';
 import { layoutTree, layoutFocus, fitTransform, stretchLevelGap, LEVEL_GAP, pathIds } from '../domain/layout.js';
 
 const ORIENT_LABEL = { vertical: '纵向', horizontal: '横向' };
@@ -45,7 +56,7 @@ const DEPTH_OPTIONS = [
   { v: 5, label: '5 代' }, { v: 6, label: '6 代' }, { v: Infinity, label: '全部' },
 ];
 
-export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail }) {
+export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail, onNavigate }) {
   const state = {
     mode: 'tree',
     rootId: 'P0001',
@@ -370,6 +381,7 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
     svgEl = svg;
 
     bindPanZoom(svg, gRoot);
+    syncTouchAction();   // 每次重绘后重新判定手势归属（布局与缩放都可能已变）
     updateStatus(layout, {
       overflow: layout.bounds.width * tf.scale > hostW - 28
         || layout.bounds.height * tf.scale > hostH - 28,
@@ -516,7 +528,7 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
     // 已按可读字号下限显示而图形超出画布时，明确告知「拖拽可看全」
     if (overflow) {
       statusBar.appendChild(h('span', { class: 'chart-status__item chart-status__item--warn' },
-        '已按可读字号显示，图形超出画布，可拖拽平移查看'));
+        '已按可读字号显示，图形超出画布；拖拽（手机单指滑动）可平移查看'));
     }
     statusBar.appendChild(h('span', { class: 'chart-status__hint' },
       '滚轮缩放 · 拖拽平移 · 点击查看档案 · 双击以其为根'));
@@ -524,7 +536,35 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
 
   /* ── 缩放平移 ─────────────────────────────────────────── */
 
+  /**
+   * 图形是否超出画布。缩放后可能只在一个方向上溢出，
+   * 两个方向分别判定：横向溢出向来由我们接管（touch-action 允许 pan-y 时
+   * 横向手势仍可取消），纵向溢出才需要把 touch-action 改成 none。
+   */
+  function contentOverflow() {
+    const b = current?.bounds;
+    const t = state.transform;
+    const cw = canvas.clientWidth || 0;
+    const ch = canvas.clientHeight || 0;
+    if (!b || !t || !cw || !ch) return { x: false, y: false };
+    return {
+      x: b.width * t.scale > cw + 1,
+      y: b.height * t.scale > ch + 1,
+    };
+  }
+
+  /**
+   * 同步画布手势归属：纵向溢出时交出全部手势（none），否则保留页面纵向滚动（pan-y）。
+   * 必须在**每次变换之后**调用——缩放会改变是否溢出，进而改变手势归属。
+   */
+  function syncTouchAction() {
+    const ov = contentOverflow();
+    const want = ov.y ? 'none' : 'pan-y';
+    if (canvas.style.touchAction !== want) canvas.style.touchAction = want;
+  }
+
   function applyTransform() {
+    syncTouchAction();
     if (!svgEl) return;
     const g = svgEl.querySelector('.gc-root');
     const t = state.transform;
@@ -585,9 +625,12 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
     svg.addEventListener('wheel', onWheel, { passive: false });
     offs.push(() => svg.removeEventListener('wheel', onWheel));
 
-    /* ── 触屏：横向单指平移、双指捏合缩放 ──
-       canvas 设 touch-action: pan-y，纵向滑动交还页面滚动，
-       仅当手势被判定为横向时才 preventDefault 并平移图形。 */
+    /* ── 触屏：单指平移、双指捏合缩放 ──
+       纵向是否由我们接管，取决于图形是否纵向溢出（见 syncTouchAction）：
+         · 未溢出：touch-action 为 pan-y，纵向手势归页面滚动，我们只接横向；
+         · 已溢出：touch-action 为 none，纵向手势也归我们，横纵自由平移。
+       一旦判定为「拖图形」（one.locked），本次手势内不再做轴判断，
+       允许斜向自由平移——放大后想往哪儿看就往哪儿拖。 */
     let one = null, pinch = null;
     const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
     const midOfTouches = (t, rect) => ({
@@ -603,7 +646,7 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
       } else if (e.touches.length === 1) {
         one = {
           x: e.touches[0].clientX, y: e.touches[0].clientY,
-          tx: state.transform.tx, ty: state.transform.ty, axis: null,
+          tx: state.transform.tx, ty: state.transform.ty, axis: null, locked: false,
         };
         pinch = null;
       }
@@ -627,15 +670,18 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
         const dx = e.touches[0].clientX - one.x;
         const dy = e.touches[0].clientY - one.y;
         if (!one.axis) {
+          // 8px 死区：避免手指微颤被当成拖动，也避免误吞点击
           if (Math.abs(dx) + Math.abs(dy) < 8) return;
           one.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
         }
-        if (one.axis === 'x') {
-          e.preventDefault();
-          state.transform = { ...state.transform, tx: one.tx + dx };
-          state.fitMode = false;
-          applyTransform();
-        }
+        // 纵向手势且图形未纵向溢出：交还页面滚动（此时 touch-action 为 pan-y，
+        // 浏览器自行处理；我们若 preventDefault 反而会卡住页面）
+        if (!one.locked && one.axis === 'y' && !contentOverflow().y) return;
+        one.locked = true;
+        e.preventDefault();
+        state.transform = { ...state.transform, tx: one.tx + dx, ty: one.ty + dy };
+        state.fitMode = false;
+        applyTransform();
       }
     };
     const onTouchEnd = (e) => {
@@ -644,7 +690,7 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
         pinch = null;
         one = {
           x: e.touches[0].clientX, y: e.touches[0].clientY,
-          tx: state.transform.tx, ty: state.transform.ty, axis: null,
+          tx: state.transform.tx, ty: state.transform.ty, axis: null, locked: false,
         };
       }
     };
@@ -674,10 +720,22 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
         h('div', { class: 'chart-aside__hint-title' }, '点击图中任一节点'),
         h('p', {}, '将在此显示该人物的档案、世系路径与直系亲属，并可进行编辑、添子、添配等操作。'),
         h('p', { class: 't-xs t-faint' },
-          '双击节点可「以该人为根」重新展开图形；点击节点下方的 +/− 可折叠或展开该支。')));
+          '双击节点可「以该人为根」重新展开图形；点击节点下方的 +/− 可折叠或展开该支。'),
+        // 尚未选中人物时的去处：图上找不到人就去名录检索，看到虚框想核对就去校验中心
+        h('div', { class: 'btn-row', style: { marginTop: '14px' } },
+          h('button', { class: 'btn btn--sm', onClick: () => onNavigate('explore') }, '去名录检索人物'),
+          h('button', { class: 'btn btn--sm', onClick: () => onNavigate('validate') }, '查看待复核清单'))));
       return;
     }
-    aside.appendChild(h('div', { class: 'chart-aside__body' }, renderDetail(p, { focusId: state.rootId })));
+    aside.appendChild(h('div', { class: 'chart-aside__body' },
+      renderDetail(p, { focusId: state.rootId }),
+      // 图形与名录是同一份数据的两种看法：看完图想逐条比对，一键切过去
+      h('div', { class: 'btn-row', style: { marginTop: '10px' } },
+        h('button', {
+          class: 'btn btn--sm',
+          onClick: () => onPick(p.id, { view: 'explore' }),
+        }, '在名录中查看'),
+        h('button', { class: 'btn btn--sm', onClick: () => onNavigate('validate') }, '去校验中心'))));
   }
 
   /* ── 组装 ─────────────────────────────────────────────── */
@@ -702,7 +760,16 @@ export function createChartView(store, { auth, onPick, onEdit, onDelete, onAddCh
   const treeHost = h('div', { class: 'chart-main' }, toolbar, canvas, statusBar);
   root.append(h('div', { class: 'chart-split' },
     h('div', { class: 'chart-left' }, treeHost, legend),
-    aside));
+    aside),
+  pageJump({
+    current: 'chart',
+    onNavigate,
+    extra: [{
+      key: 'validate',
+      hint: '图中虚线节点来自规则推导，需人工核对',
+    }],
+    note: '滚轮缩放 · 拖拽平移 · 双击节点改根',
+  }));
 
   ensureResizeObserver();
   refreshAll();

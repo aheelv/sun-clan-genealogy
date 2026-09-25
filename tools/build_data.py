@@ -1255,7 +1255,7 @@ if __name__ == "__main__":
     now = datetime.now(CST).isoformat(timespec="seconds")
     genealogy = {
         "meta": {
-            "title": "孙氏族谱", "subtitle": "中秋主题静态族谱",
+            "title": "孙氏族谱", "subtitle": "静态族谱站点",
             "version": "1.0.0", "schemaVersion": "1.0.0",
             "generatedAt": now,
             "generator": "tools/build_data.py",

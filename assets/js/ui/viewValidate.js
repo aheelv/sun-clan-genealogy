@@ -9,11 +9,11 @@
 import { h, toast } from '../core/dom.js';
 import { validateGraph, RULE_COUNT } from '../core/validate.js';
 import { PERM } from '../core/auth.js';
-import { badge, card, emptyState, sectionHead, severityPill, statCard } from './components.js';
+import { badge, card, emptyState, sectionHead, severityPill, statCard, pageJump } from './components.js';
 
 const SEV_LABEL = { error: '错误', warn: '警告', info: '提示' };
 
-export function renderValidate(store, { auth, onPick, seed }) {
+export function renderValidate(store, { auth, onPick, seed, onNavigate }) {
   const root = h('div', { class: 'view' });
   let levelFilter = null;
   let lastResult = null;
@@ -43,6 +43,16 @@ export function renderValidate(store, { auth, onPick, seed }) {
   root.appendChild(summaryHost);
   root.appendChild(verifHost);
   root.appendChild(bodyHost);
+  // 待核清单往往上千条，页尾给一条出路：直接去名录筛出推导关系逐条核对
+  root.appendChild(pageJump({
+    current: 'validate', onNavigate,
+    extra: [{
+      key: 'explore',
+      hint: '只看推导待核（parentEvidence=heuristic）逐条过目',
+      params: { inferred: true },
+    }],
+    note: '错误级问题会阻断保存；警告级可保存但需人工确认',
+  }));
 
   /* ── 独立交叉校验（转录期，随种子入站） ─────────────────── */
   function renderVerification() {

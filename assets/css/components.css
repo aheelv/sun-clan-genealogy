@@ -694,6 +694,65 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
 }
 .entry__go { flex: none; color: var(--text-faint); font-size: 1.2rem; line-height: 1; }
 
+/* 非访客：受限模块直接平铺在必要模块之下，与首屏留出一档间距 */
+.entry-extra { margin-top: var(--sp-4); }
+
+/* 「其他权限」折叠组：访客下把治理类模块收在一处，默认收起 */
+.entry-others { margin-top: var(--sp-3); }
+.entry-others__head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3);
+  padding: 8px var(--sp-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+}
+.entry-others__head > .t-sm { flex: 1; min-width: 12ch; }
+.entry-others__toggle { white-space: nowrap; }
+.entry-others__body { margin-top: var(--sp-3); }
+
+/* 使用说明：入口之后的引导条 */
+.entry-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.entry-actions__text { flex: 1; min-width: 16ch; }
+.entry-actions__title {
+  font-family: var(--font-serif); font-size: 0.98rem; font-weight: 600;
+  letter-spacing: 0.04em; margin-bottom: 2px;
+}
+.entry-actions__btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.entry-actions__btn .btn__icon { display: inline-flex; }
+.entry-actions__btn .btn__icon svg { width: 17px; height: 17px; }
+
+/* ══ 使用说明弹窗 ══════════════════════════════════════ */
+.guide > .t-sm { margin-bottom: var(--sp-3); }
+.guide__item {
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--border-soft);
+}
+.guide__item:first-of-type { border-top: none; }
+.guide__title {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-serif); font-size: 1rem; font-weight: 600;
+  letter-spacing: 0.04em; margin-bottom: 8px;
+}
+.guide__icon {
+  flex: none; width: 26px; height: 26px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  background: var(--gold-wash); color: var(--accent-strong);
+}
+.guide__icon svg { width: 17px; height: 17px; }
+.guide__list { margin: 0; padding-left: 1.15em; }
+.guide__list li {
+  font-size: 0.86rem; line-height: 1.75; color: var(--text-dim);
+  margin-bottom: 0.4em;
+}
+.guide__list li:last-child { margin-bottom: 0; }
+
 /* ══ 首页快速检索 ══════════════════════════════════════ */
 .quickfind { margin-bottom: var(--sp-5); }
 .quickfind__bar {
@@ -821,6 +880,66 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
 .authorcard__stats { margin-bottom: var(--sp-3); }
 .authorcard .doc-body p { margin-bottom: 0.7em; }
 
+/* ══ 页面底部「快速跳转」条 ═══════════════════════════════
+   谱系图 / 名录 / 校验中心都是数千像素的长页，读到末尾时顶栏早已滚出视野，
+   换页只能先滚回顶部。故每个视图末尾固定一条跳转条：列出除当前页外的全部
+   视图（含一句用途，避免只给图标让人猜），并附「回到顶部」。 */
+.pagejump {
+  margin-top: var(--sp-5);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.pagejump__head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--sp-3);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border-bottom: 1px dashed var(--border);
+}
+.pagejump__label {
+  font-family: var(--font-serif); font-size: 0.9rem; font-weight: 600;
+  letter-spacing: 0.08em; color: var(--accent-strong);
+}
+.pagejump__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sp-2);
+}
+.pagejump__item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s, transform 0.16s, box-shadow 0.16s;
+}
+.pagejump__item:hover {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.pagejump__item:active { transform: translateY(0); }
+.pagejump__icon {
+  flex: none; width: 30px; height: 30px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  background: var(--gold-wash); color: var(--accent-strong);
+}
+.pagejump__icon svg { width: 18px; height: 18px; }
+.pagejump__text { display: flex; flex-direction: column; min-width: 0; }
+.pagejump__name {
+  font-family: var(--font-serif); font-size: 0.88rem; font-weight: 600;
+  letter-spacing: 0.04em; line-height: 1.25;
+}
+.pagejump__hint {
+  font-size: 0.72rem; color: var(--text-faint); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pagejump__top { white-space: nowrap; }
+
 /* ── 响应式 ───────────────────────────────────────────── */
 @media (max-width: 1180px) {
   .chart-split { grid-template-columns: minmax(0, 1fr); }
@@ -831,11 +950,15 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
   .chart-toolbar { padding: 8px 10px; gap: 6px var(--sp-2); }
   .chart-toolbar .select { min-width: 100px; }
   .chart-status__hint { display: none; }
+  /* 窄屏：跳转项压到两列，用途说明收起（图标 + 名称已足够识别） */
+  .pagejump { padding: var(--sp-3); }
+  .pagejump__items { grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); }
+  .pagejump__hint { display: none; }
 }
 
 /* ── 打印：只留图形 ───────────────────────────────────── */
 @media print {
-  .chart-toolbar, .chart-status, .chart-legend { display: none !important; }
+  .chart-toolbar, .chart-status, .chart-legend, .pagejump { display: none !important; }
   .chart-main { border-color: #bbb; box-shadow: none; }
   .chart-canvas { height: auto; background-image: none; }
   .gc-svg { height: 74vh; }

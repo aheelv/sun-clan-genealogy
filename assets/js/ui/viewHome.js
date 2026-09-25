@@ -11,28 +11,53 @@
  *   4. **改造说明在明处**：软件化改造说明（孙智广）单列一节，作者与来由可查。
  */
 
-import { h } from '../core/dom.js';
+import { h, modal } from '../core/dom.js';
 import { GEN_CHARS, GEN_LABELS } from '../core/schema.js';
 import { computeStats, displayName, searchPersons } from '../domain/person.js';
 import { branchStats } from '../domain/branch.js';
-import { statCard, sectionHead, card, badge, bar, genCharTable, personPill } from './components.js';
+import { statCard, sectionHead, card, badge, bar, genCharTable, personPill, pageJump } from './components.js';
 import { docBlocks, excerpt } from './docBlocks.js';
+import { VIEW_ICONS } from './viewMeta.js';
 import { AUTHOR_NOTE } from '../data/authorNote.js';
+
+/**
+ * 「原籍与迁徙」正文取《孙氏族谱前言》前三段（原谱第 35–37 段）：
+ *   P0 原籍山东登州府文登县孙家洼 · 文友公流落复州三道嘴子
+ *   P1 与岛外北滩亮子屯曲姓女结亲 · 迁居孙家沟子 · 称海北始祖
+ *   P2 二世祖分居 · 智、斌、吉诸公北迁被挽留
+ * 三段同属「从哪来、怎么落脚」一条线，故一并作为原籍介绍的完整正文。
+ * ⚠ 此处为**硬编码段落下标**，依赖 build_data.py 的 PREFACE pick([35…42])；
+ *   若前言段落顺序调整，必须同步改这里，否则会静默取错段落。
+ */
+const ORIGIN_PARAS = [0, 1, 2];
+
+/**
+ * 取前若干句作摘要。
+ *
+ * 不能用 docBlocks 的 `excerpt()`：它遇到第一个句号就收尾，而《前言》开篇
+ * 第一句只是「我孙氏（汉族）原籍山东省登州府文登县孙家洼（小地名南桥子白果树屯）。」
+ * ——原籍介绍因此只剩一行，正是「内容过短」的成因。这里按句累加，
+ * 既保住可读的断句，又能把迁徙经过一并交代。
+ */
+function leadOf(text, { sentences = 4, maxChars = 170 } = {}) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  const parts = t.match(/[^。！？]*[。！？]/g) || [t];
+  let out = '';
+  for (let i = 0; i < Math.min(sentences, parts.length); i += 1) {
+    if (out && out.length + parts[i].length > maxChars) break;
+    out += parts[i];
+  }
+  return out || parts[0];
+}
 
 const CLOUDS = () => [
   h('span', { html: `<svg width="120" height="26" viewBox="0 0 120 26" fill="none"><path d="M2 20c7-10 19-10 25-3 4 5 12 5 16 0 6-7 17-7 22 2" stroke="currentColor" stroke-opacity="0.28" stroke-width="1.4" stroke-linecap="round"/></svg>` }),
   h('span', { html: `<svg width="92" height="22" viewBox="0 0 92 22" fill="none"><path d="M2 17c6-8 15-8 20-2 3 4 9 4 13 0 4-5 13-5 17 1" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.4" stroke-linecap="round"/></svg>` }),
 ];
 
-/* ── 功能入口图标（内联 SVG，无外部依赖） ───────────────── */
-const ICONS = {
-  chart: '<path d="M4 26h24M12 26V14M20 26V14M12 14V6M20 14V6M8 10h16" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
-  explore: '<circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M20 20l6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
-  docs: '<path d="M7 5h11l5 5v16H7z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M18 5v5h5M11 15h9M11 19h9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
-  validate: '<path d="M6 6h20v20H6z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M10 15l4 4 8-8" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
-  genchar: '<path d="M6 10h20M6 16h20M6 22h20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="16" cy="5" r="2" fill="currentColor"/>',
-  admin: '<circle cx="16" cy="11" r="4.5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M7 25c2-5 5-7 9-7s7 2 9 7" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
-};
+/* ── 功能入口图标：与导航共用 ui/viewMeta.js 的一份（不再本地重复定义） ── */
+const ICONS = VIEW_ICONS;
 
 /** 功能入口卡：图标 + 名称 + 一句话说明 + 右箭头 */
 function entryCard({ icon, label, desc, meta, onClick }) {
@@ -45,29 +70,179 @@ function entryCard({ icon, label, desc, meta, onClick }) {
     h('span', { class: 'entry__go', 'aria-hidden': 'true' }, '›'));
 }
 
-export function renderHome(store, { seed, onPick, onNavigate }) {
+/* ── 使用说明 ───────────────────────────────────────────── */
+
+/**
+ * 各模块使用说明。
+ * 与界面一一对应：改模块名或交互时同步改这里，避免说明与实物脱节。
+ */
+const GUIDE = [
+  {
+    icon: 'home', title: '概览（默认落点）',
+    items: [
+      '进门先看这一页：收录人数、世代跨度、六大支系规模与平均子女数一目了然。',
+      '英雄区下方是「快速检索」：输入谱名、配偶名或原谱单元格编号（如 I276），点击结果即可跳到该人档案。',
+      '「原籍与迁徙」默认只显示摘要，点「展开原籍全文」可读《前言》中关于原籍与迁居的完整三段原文。',
+      '下方依次是六大支系、二十辈凡字、软件化改造说明与谱牒文献速览，点击支系卡可带筛选跳转到名录。',
+    ],
+  },
+  {
+    icon: 'chart', title: '谱系图',
+    items: [
+      '本站主视图：以图形呈现世系，而非文字列表。世代自上而下铺开，实线为父系主干，虚线为配偶。',
+      '工具条可切换「根人物」（一世祖或六大支系祖）、「展开层数」（2 代至全部）、「方向」（纵向／横向）与「是否显示配偶」。',
+      '点击节点 → 右侧显示该人档案；双击节点 → 以该人为根重新展开；节点下方的 ＋/− 折叠或展开该支。',
+      '缩放平移：滚轮缩放（以指针为中心）、按住拖拽平移；手机为双指捏合缩放、单指拖动平移。放大后图形超出画布时，状态栏会提示「可拖拽平移查看」。',
+      '节点描边为虚线者，表示父子关系来自规则推导（待核），须在「校验中心」复核后方可视为定论。',
+      '右上角「适应」按钮可随时回到「整图刚好放得下」的视角。',
+    ],
+  },
+  {
+    icon: 'explore', title: '名录',
+    items: [
+      '默认以「世系树」呈现并展开全部世代；点顶部「列表／世系树」可切换视图，列表更适合逐条翻阅与比对。',
+      '世系树中：点击节点前的 ＋/− 折叠或展开该支，虚线框为配偶；工具条提供「全部展开」「展开至三世」「全部折叠」。',
+      '筛选条可按「世代」「支系」多选过滤，并可勾选「仅看推导待核」只看待复核人物；排序支持世代、姓名、子女数、配偶数。',
+      '在检索框输入关键词即自动切到列表视图并过滤结果，命中数显示在右上角。',
+      '点任一人 → 右侧显示完整档案：世系路径、父母、配偶、子女、过继关系、旁注与原谱出处，并按当前角色给出编辑／添子／添配／删除按钮。',
+    ],
+  },
+  {
+    icon: 'docs', title: '文献',
+    items: [
+      '《孙氏族谱前言》《编后话》《农垦考》与三次修订说明的原文，按原谱版式还原（注条、凡字表、对联不再压平）。',
+      '每段都可回溯到原谱页码；凡字与注记一节给出二十辈凡字及其在姓名中的位置规则。',
+    ],
+  },
+  {
+    icon: 'validate', title: '校验中心',
+    items: [
+      '构建期校验（V001–V019）与独立交叉校验（C01–C12）的分项结果，含每项的问题数与明细清单。',
+      '「待复核清单」集中列出全部由规则推导而来的父子关系，可一键跳转到原谱对应单元格核对。',
+      '校验只报告、不改数据：原谱留白处如实标注为待考，不做臆断补全。',
+    ],
+  },
+  {
+    icon: 'admin', title: '权限与数据',
+    items: [
+      '四角色 RBAC：「访客」只读；「编修」可增改与导出；「族老」可删改、导入并查阅审计日志；「管理员」拥有全部权限。',
+      '切换角色需口令：访客免口令，切到其他角色须输入口令，通过后本会话内有效，刷新页面即重新上锁。',
+      '数据管理：导出 JSON 归档、导入覆盖、重置为原始转录。导入与重置不可撤销，请先导出备份。',
+      '变更审计：所有增删改与导入／重置都会留痕（操作人、时间、修订号）。',
+    ],
+  },
+];
+
+/** 使用说明弹窗：把各模块的用法讲清楚，而不是把用户推去猜 */
+function openGuide() {
+  const body = h('div', { class: 'guide' },
+    h('p', { class: 't-sm t-dim' },
+      '本站把《孙氏族谱》的世系图表与谱牒文献转录、建模为结构化数据，'
+      + '以下按模块说明用法。所有数据都保存在你自己的浏览器里，不会上传服务器。'),
+    ...GUIDE.map((g) => h('section', { class: 'guide__item' },
+      h('h4', { class: 'guide__title' },
+        h('span', { class: 'guide__icon', html: `<svg viewBox="0 0 32 32" aria-hidden="true">${ICONS[g.icon] || ''}</svg>` }),
+        g.title),
+      h('ul', { class: 'guide__list' }, ...g.items.map((t) => h('li', {}, t))))),
+    h('section', { class: 'guide__item' },
+      h('h4', { class: 'guide__title' },
+        h('span', { class: 'guide__icon', html: `<svg viewBox="0 0 32 32" aria-hidden="true">${ICONS.genchar}</svg>` }),
+        '快捷键与提示'),
+      h('ul', { class: 'guide__list' },
+        h('li', {}, '按 ', h('kbd', { class: 'mono' }, '/'), ' 随时唤起检索；按 ', h('kbd', { class: 'mono' }, 'g'), ' 直达谱系图。'),
+        h('li', {}, '顶栏右侧可切换角色与配色（宣纸月华／桂影夜宴），选择记在本地。'),
+        h('li', {}, '小屏下顶部导航换成底部标签栏，拇指可达。'))),
+  );
+  return modal({
+    title: '使用说明',
+    body,
+    width: 720,
+    actions: [{ label: '知道了', value: true, variant: 'btn--primary' }],
+  });
+}
+
+/**
+ * 「其他权限」折叠组：把对当前角色非必要的模块收进一处，
+ * 而不是从界面上抹掉——用户升权后仍能找回入口。
+ */
+function othersGroup(cards, count) {
+  const host = h('div', { class: 'entry-others__body', hidden: true },
+    h('div', { class: 'grid grid--3' }, ...cards));
+  const btn = h('button', {
+    class: 'btn btn--sm entry-others__toggle',
+    'aria-expanded': 'false',
+    onClick: () => {
+      const open = host.hidden;
+      host.hidden = !open;
+      btn.setAttribute('aria-expanded', String(open));
+      btn.textContent = open ? `其他权限（${count}）▴` : `其他权限（${count}）▾`;
+    },
+  }, `其他权限（${count}）▾`);
+  return h('div', { class: 'entry-others' },
+    h('div', { class: 'entry-others__head' },
+      h('span', { class: 't-sm t-faint' }, '对当前角色非必需的模块收在此处'),
+      btn),
+    host);
+}
+
+export function renderHome(store, { seed, auth, onPick, onNavigate }) {
   const persons = store.persons;
   const stats = computeStats(persons);
   const branches = branchStats(persons);
   const report = seed.buildReport;
+  const role = auth?.role || 'guest';
   const root = h('div', { class: 'view' });
 
   /* ── 英雄区 ─────────────────────────────────────────── */
+  /* 原籍介绍不再只给一句摘要：默认显示首段的长摘要，点击可展开
+     《前言》中「从哪来、怎么落脚」的完整三段原文。 */
   const preface = seed.intro?.sections?.find((s) => s.id === 'PREFACE');
-  const lead = excerpt(preface?.paragraphs?.[0] || '', 132);
+  const paras = preface?.paragraphs || [];
+  const origin = ORIGIN_PARAS.map((i) => paras[i]).filter(Boolean);
+  const lead = leadOf(origin[0] || paras[0] || '');
+
+  const originBox = h('div', { class: 'hero__origin', id: 'hero-origin', hidden: true },
+    h('div', { class: 'doc-body' }, ...origin.map((p) => h('p', {}, p))),
+    h('div', { class: 'hero__origin-foot' },
+      h('span', { class: 't-xs t-faint' },
+        '节自《孙氏族谱前言》　九世孙 孙金德 撰　一九八三年七月一日'),
+      h('button', { class: 'btn btn--sm', onClick: () => onNavigate('docs') }, '阅读全部文献 →')));
+
+  const expandBtn = h('button', {
+    class: 'btn btn--sm hero__expand',
+    'aria-expanded': 'false',
+    'aria-controls': 'hero-origin',
+    onClick: () => {
+      const open = originBox.hidden;
+      originBox.hidden = !open;
+      expandBtn.setAttribute('aria-expanded', String(open));
+      expandBtn.textContent = open ? '收起原籍全文 ▴' : '展开原籍全文 ▾';
+    },
+  }, '展开原籍全文 ▾');
 
   root.appendChild(h('section', { class: 'hero' },
     h('div', { class: 'moon' }),
     h('div', { class: 'hero__clouds' }, ...CLOUDS()),
     h('div', { class: 'hero__inner' },
-      h('div', { class: 'hero__eyebrow' }, 'Mid-Autumn · Genealogy'),
+      h('div', { class: 'hero__eyebrow' }, 'Sun Clan · Genealogy'),
       h('h1', {}, '孙氏族谱'),
       h('p', { class: 'hero__lead' }, lead),
       h('div', { class: 'hero__meta' },
         badge('一世祖文友公 · 自山东迁辽东', 'gold'),
         badge(`现存 ${stats.maxGen} 世`, 'jade'),
         badge('六大支系', 'cinnabar'),
-        badge(`${stats.total} 人`, 'muted')))));
+        badge(`${stats.total} 人`, 'muted')),
+      h('div', { class: 'hero__actions' },
+        h('button', {
+          class: 'btn btn--primary hero__cta',
+          onClick: () => onNavigate('docs'),
+        }, '阅读谱牒文献 →'),
+        h('button', {
+          class: 'btn hero__cta',
+          onClick: () => onNavigate('chart'),
+        }, '浏览谱系图'),
+        expandBtn),
+      originBox)));
 
   /* ── 快速检索（首页直接可用） ────────────────────────── */
   const resultBox = h('div', { class: 'quickfind__results' });
@@ -117,32 +292,60 @@ export function renderHome(store, { seed, onPick, onNavigate }) {
       + '按 ', h('kbd', { class: 'mono' }, '/'), ' 可随时唤起检索')));
 
   /* ── 功能入口 ───────────────────────────────────────── */
-  root.appendChild(sectionHead('从这里开始'));
-  root.appendChild(h('div', { class: 'grid grid--3' },
-    entryCard({
-      icon: 'chart', label: '谱系图', desc: '纵向世系树，含配偶；可折叠、缩放、平移',
-      meta: `${stats.maxGen} 世`, onClick: () => onNavigate('chart'),
-    }),
-    entryCard({
-      icon: 'explore', label: '名录检索', desc: '按世代、支系筛选，列表与世系树双模式',
-      meta: `${stats.total} 人`, onClick: () => onNavigate('explore'),
-    }),
+  /* 入口分两层：
+   *   essential  —— 任何角色都用得上的浏览入口；
+   *   restricted —— 与数据治理／复核相关，访客不必看到，
+   *                 收进「其他权限」折叠组，而不是从界面上抹掉
+   *                 （升权后仍能找回入口，也便于说明「还有别的功能」）。
+   * 非访客角色直接平铺全部入口：对它们而言这些都是本职功能。
+   *
+   * 「谱牒文献」置于首位：族谱首先是文献，读者进门应先读到原文，
+   * 再去看图形化的世系呈现。 */
+  const essentialCards = [
     entryCard({
       icon: 'docs', label: '谱牒文献', desc: '前言、编后话、农垦考与三次修订说明原文',
       meta: '4,617 字', onClick: () => onNavigate('docs'),
     }),
     entryCard({
-      icon: 'validate', label: '校验中心', desc: '独立交叉校验与待复核清单，可跳转原谱',
-      meta: `${report.totals.issueTotal} 项`, onClick: () => onNavigate('validate'),
+      icon: 'chart', label: '谱系图', desc: '纵向世系树，含配偶；可折叠、缩放、平移',
+      meta: `${stats.maxGen} 世`, onClick: () => onNavigate('chart'),
+    }),
+    entryCard({
+      icon: 'explore', label: '名录检索', desc: '按世代、支系筛选，世系树与列表双模式',
+      meta: `${stats.total} 人`, onClick: () => onNavigate('explore'),
     }),
     entryCard({
       icon: 'genchar', label: '二十辈凡字', desc: '士仁公、道公公所定凡字与位置',
       meta: '20 字', onClick: () => onNavigate('docs'),
     }),
+  ];
+  const restrictedCards = [
+    entryCard({
+      icon: 'validate', label: '校验中心', desc: '独立交叉校验与待复核清单，可跳转原谱',
+      meta: `${report.totals.issueTotal} 项`, onClick: () => onNavigate('validate'),
+    }),
     entryCard({
       icon: 'admin', label: '权限与数据', desc: '角色切换、导入导出、审计日志',
       meta: '四角色', onClick: () => onNavigate('admin'),
-    })));
+    }),
+  ];
+
+  root.appendChild(sectionHead('从这里开始'));
+  root.appendChild(h('div', { class: 'grid grid--3' }, ...essentialCards));
+  if (role === 'guest') {
+    root.appendChild(othersGroup(restrictedCards, restrictedCards.length));
+  } else {
+    root.appendChild(h('div', { class: 'grid grid--3 entry-extra' }, ...restrictedCards));
+  }
+
+  /* ── 使用说明（入口之后的引导） ─────────────────────── */
+  root.appendChild(h('div', { class: 'entry-actions' },
+    h('div', { class: 'entry-actions__text' },
+      h('div', { class: 'entry-actions__title' }, '第一次来？'),
+      h('div', { class: 't-sm t-faint' }, '各模块怎么用、图上怎么操作，一次讲清')),
+    h('button', { class: 'btn btn--primary entry-actions__btn', onClick: openGuide },
+      h('span', { class: 'btn__icon', html: `<svg viewBox="0 0 32 32" aria-hidden="true">${ICONS.help}</svg>` }),
+      '使用说明')));
 
   /* ── 谱系概览 ───────────────────────────────────────── */
   root.appendChild(sectionHead('谱系概览'));
@@ -261,6 +464,13 @@ export function renderHome(store, { seed, onPick, onNavigate }) {
           h('td', { class: 'mono t-xs' }, (x.bytes || 0).toLocaleString('zh-CN')),
           h('td', { class: 'mono t-xs' }, x.sha256)))))),
   ]));
+
+  /* ── 快速跳转（长页面末尾不必回顶栏） ────────────────── */
+  root.appendChild(pageJump({
+    current: 'home',
+    onNavigate,
+    note: '按 / 检索 · 按 g 直达谱系图',
+  }));
 
   return root;
 }

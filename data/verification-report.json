@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-09-25T13:40:25+08:00",
+ "generatedAt": "2026-09-25T14:36:48+08:00",
  "method": "独立重算：不复用 tools/build_data.py 的任何代码，仅读 chart-raw.json 与 genealogy.json",
  "checks": [
   {

@@ -7,13 +7,15 @@ import { GEN_LABELS, PERSON_STATUS } from '../core/schema.js';
 import { searchPersons, filterPersons, sortPersons, displayName, personFlags } from '../domain/person.js';
 import { BRANCHES, branchMeta } from '../domain/branch.js';
 import { indexById, indexChildren, pathToRoot, ancestorsOf } from '../domain/relation.js';
-import { badge, branchBadge, genBadge, emptyState, avatar, flagsBadges, personPill } from './components.js';
+import { badge, branchBadge, genBadge, emptyState, avatar, flagsBadges, personPill, pageJump } from './components.js';
 
 const PAGE_SIZE = 60;
 
-export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail }) {
+export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAddChild, onAddSpouse, renderDetail, onNavigate }) {
   const state = {
-    mode: 'list',
+    // 默认「世系树」：族谱天然是一棵树，先给全景，再让用户按需折叠，
+    // 比先丢一页 60 人的列表更贴合「看谱」的直觉。
+    mode: 'tree',
     query: '',
     gens: new Set(),
     branchIds: new Set(),
@@ -33,7 +35,13 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
   /* ── 工具栏 ── */
   const searchInput = h('input', {
     class: 'input input--search', placeholder: '检索姓名、注音、旁注或原谱单元格…',
-    oninput: debounce((e) => { state.query = e.target.value; state.page = 1; refreshList(); }, 180),
+    oninput: debounce((e) => {
+      state.query = e.target.value;
+      state.page = 1;
+      // 检索是「找具体某个人」，列表比树好用：一有输入就切到列表
+      if (state.query && state.mode !== 'list') switchMode('list', segButtons[0]);
+      refreshList();
+    }, 180),
   });
 
   const chipSet = (label, items, set, onToggle, labelFn = (x) => x.label) => {
@@ -61,8 +69,8 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
   const branchCounts = new Map();
   for (const p of store.persons) branchCounts.set(p.branchId, (branchCounts.get(p.branchId) || 0) + 1);
 
-  const segListBtn = h('button', { class: 'is-on', onClick: (e) => switchMode('list', e.target) }, '列表');
-  const segTreeBtn = h('button', { onClick: (e) => switchMode('tree', e.target) }, '世系树');
+  const segListBtn = h('button', { onClick: (e) => switchMode('list', e.target) }, '列表');
+  const segTreeBtn = h('button', { class: 'is-on', onClick: (e) => switchMode('tree', e.target) }, '世系树');
   const segButtons = [segListBtn, segTreeBtn];
 
   const toolbar = h('div', { class: 'toolbar' },
@@ -71,39 +79,64 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
     h('div', { class: 'spacer' }),
     h('span', { class: 't-xs t-faint', id: 'explore-count' }, ''));
 
-  const filterBar = h('div', { class: 'card', style: { marginBottom: '12px' } },
-    h('div', { class: 'card__body', style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-      chipSet('世代', Array.from({ length: 18 }, (_, i) => ({
-        key: i + 1, label: GEN_LABELS[i + 1], count: genCounts.get(i + 1) || 0,
-      })).filter((x) => x.count), state.gens, () => refreshList()),
-      chipSet('支系', BRANCHES.filter((b) => branchCounts.get(b.id)).map((b) => ({
-        key: b.id, label: b.short, count: branchCounts.get(b.id) || 0,
-      })), state.branchIds, () => refreshList()),
-      h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } },
-        h('span', { class: 't-xs t-faint' }, '筛选'),
-        (() => {
-          const c = h('button', {
-            class: 'chip',
-            onClick: () => { state.onlyInferred = !state.onlyInferred; c.classList.toggle('is-on'); state.page = 1; refreshList(); },
-          }, '仅看推导待核');
-          return c;
-        })(),
-        (() => {
-          const c = h('button', {
-            class: 'chip',
-            onClick: () => { state.branchIds.clear(); state.gens.clear(); state.onlyInferred = false; state.page = 1; refresh(); },
-          }, '清空筛选');
-          return c;
-        })(),
-        h('div', { class: 'spacer' }),
-        h('span', { class: 't-xs t-faint' }, '排序'),
-        (() => {
-          const sel = h('select', { class: 'select', style: { width: 'auto' } });
-          [['gen', '世代'], ['name', '姓名'], ['children', '子女数'], ['spouses', '配偶数']]
-            .forEach(([v, l]) => sel.appendChild(h('option', { value: v }, l)));
-          sel.onchange = () => { state.sortKey = sel.value; refreshList(); };
-          return sel;
-        })())));
+  /* 筛选条。
+     注意一：整块内容必须由**同一个** buildFilterBody() 生成——此前重建时漏了
+     「筛选／排序」一行，导致点过「查看全部 N 条结果」之后排序下拉与
+     「仅看推导待核」会凭空消失。 */
+  function buildFilterBody() {
+    const body = h('div', { class: 'card__body', style: { display: 'flex', flexDirection: 'column', gap: '8px' } });
+    body.appendChild(chipSet('世代', Array.from({ length: 18 }, (_, i) => ({
+      key: i + 1, label: GEN_LABELS[i + 1], count: genCounts.get(i + 1) || 0,
+    })).filter((x) => x.count), state.gens, () => refreshList()));
+    body.appendChild(chipSet('支系', BRANCHES.filter((b) => branchCounts.get(b.id)).map((b) => ({
+      key: b.id, label: b.short, count: branchCounts.get(b.id) || 0,
+    })), state.branchIds, () => refreshList()));
+    body.appendChild(h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } },
+      h('span', { class: 't-xs t-faint' }, '筛选'),
+      h('button', {
+        class: `chip${state.onlyInferred ? ' is-on' : ''}`,
+        onClick: () => {
+          state.onlyInferred = !state.onlyInferred;
+          state.page = 1;
+          // 整条重建，使 chip 的 is-on 状态与 state 严格一致
+          refresh();
+        },
+      }, '仅看推导待核'),
+      h('button', {
+        class: 'chip',
+        onClick: () => {
+          state.branchIds.clear();
+          state.gens.clear();
+          state.onlyInferred = false;
+          state.page = 1;
+          refresh();
+        },
+      }, '清空筛选'),
+      h('div', { class: 'spacer' }),
+      h('span', { class: 't-xs t-faint' }, '排序'),
+      (() => {
+        const sel = h('select', { class: 'select', style: { width: 'auto' } });
+        [['gen', '世代'], ['name', '姓名'], ['children', '子女数'], ['spouses', '配偶数']]
+          .forEach(([v, l]) => sel.appendChild(h('option', { value: v, selected: v === state.sortKey }, l)));
+        sel.onchange = () => { state.sortKey = sel.value; refreshList(); };
+        return sel;
+      })()));
+    return body;
+  }
+
+  /* 注意二：filterBar 必须随每次重建**更新引用**。原先是 `const filterBar`，
+     首次 replaceWith 之后它就成了游离节点，后续再 replaceWith 只是改一棵不在
+     文档里的树——而列表数据照样刷新（refreshList 直接改 listHost），于是 bug
+     更隐蔽：筛选结果对了，但 chip 的高亮状态停在旧值上。故改为 let + 统一重建。 */
+  let filterBar = h('div', { class: 'card', style: { marginBottom: '12px' } }, buildFilterBody());
+
+  /** 重建筛选条，并保证 filterBar 始终指向文档中的当前节点 */
+  function rebuildFilterBar() {
+    const next = h('div', { class: 'card', style: { marginBottom: '12px' } }, buildFilterBody());
+    filterBar.replaceWith(next);
+    filterBar = next;
+    return next;
+  }
 
   /* ── 列表视图 ── */
   function currentList() {
@@ -157,7 +190,12 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
   const byId = () => indexById(store.persons);
   const childMap = () => indexChildren(store.persons);
 
-  function treeNode(person, cm, depth) {
+  /**
+   * 单个树节点。
+   * `ids` 为调用方一次性构造的 id→person 映射：全展开时树上有近两千个节点，
+   * 若在配偶分支里反复调 byId() 重建 Map，会退化成 O(n²)。
+   */
+  function treeNode(person, cm, ids, depth) {
     const kids = cm.get(person.id) || [];
     const hasKids = kids.length > 0;
     const isOpen = state.expanded.has(person.id);
@@ -175,6 +213,7 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
 
     const node = h('span', {
       class: `tnode${state.selectedId === person.id ? ' is-selected' : ''}${person.isSpouse ? ' is-spouse' : ''}`,
+      dataset: { id: person.id },
       onClick: () => select(person.id),
       title: `${GEN_LABELS[person.gen]} · ${(person.refs || []).map((r) => `第${r[0]}页`).slice(0, 4).join(' ')}`,
     },
@@ -187,14 +226,15 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
     li.appendChild(node);
     if (hasKids && isOpen) {
       const ul = h('ul', {});
-      for (const k of kids) ul.appendChild(treeNode(k, cm, depth + 1));
+      for (const k of kids) ul.appendChild(treeNode(k, cm, ids, depth + 1));
       // 配偶以斜体虚线跟随
       for (const sid of person.spouseIds || []) {
-        const sp = byId().get(sid);
+        const sp = ids.get(sid);
         if (!sp) continue;
         ul.appendChild(h('li', {},
           h('span', {
             class: `tnode is-spouse${state.selectedId === sp.id ? ' is-selected' : ''}`,
+            dataset: { id: sp.id },
             onClick: () => select(sp.id),
           }, h('span', { class: 'tnode__toggle is-leaf' }, ''), h('span', { class: 'tnode__name' }, sp.name),
           h('span', { class: 'tnode__meta' }, '配'))));
@@ -205,21 +245,36 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
   }
 
   function renderTree() {
+    const ids = byId();
     const cm = childMap();
-    const roots = store.persons.filter((p) => !p.isSpouse && (!p.fatherId || !byId().has(p.fatherId)));
+    const roots = store.persons.filter((p) => !p.isSpouse && (!p.fatherId || !ids.has(p.fatherId)));
     const ordered = roots.sort((a, b) => a.gen - b.gen || a.id.localeCompare(b.id));
     const ul = h('ul', {});
-    for (const r of ordered) ul.appendChild(treeNode(r, cm, 0));
+    for (const r of ordered) ul.appendChild(treeNode(r, cm, ids, 0));
+    const allIds = store.persons.map((p) => p.id);
     treeHost.replaceChildren(h('div', { class: 'card' },
       h('header', { class: 'card__head' },
         h('h3', {}, '世系树'),
         h('div', { class: 'spacer' }),
+        h('button', { class: 'btn btn--sm', onClick: () => { state.expanded = new Set(allIds); renderTree(); } }, '全部展开'),
         h('button', { class: 'btn btn--sm', onClick: () => { state.expanded = new Set(store.persons.filter((p) => p.gen <= 3).map((p) => p.id)); renderTree(); } }, '展开至三世'),
         h('button', { class: 'btn btn--sm', onClick: () => { state.expanded = new Set(); renderTree(); } }, '全部折叠')),
       h('div', { class: 'card__body' },
         h('p', { class: 't-sm t-dim' },
-          '默认折叠，点击节点右侧 +/− 展开后代；虚线框为配偶。父子关系标注「推导」者来自规则推导，需人工复核。'),
+          '默认展开全部世代，点击节点右侧 +/− 可折叠该支；虚线框为配偶。'
+          + '父子关系标注「推导」者来自规则推导，需人工复核。'),
         h('div', { class: 'tree', style: { maxHeight: '68vh', overflow: 'auto' } }, ul))));
+  }
+
+  /** 就地更新树中选中态；目标节点尚未渲染时返回 false，由调用方改为整树重建 */
+  function applyTreeSelection(id) {
+    let found = false;
+    for (const n of treeHost.querySelectorAll('.tnode[data-id]')) {
+      const on = n.dataset.id === id;
+      if (on) found = true;
+      n.classList.toggle('is-selected', on);
+    }
+    return found;
   }
 
   /* ── 选择与模式切换 ── */
@@ -227,20 +282,22 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
     state.selectedId = id;
     const p = store.persons.find((x) => x.id === id);
     if (!p) return;
-    detailHost.replaceChildren(renderDetail(p, { focusId: null }));
+    detailHost.replaceChildren(renderAside(p));
+
+    // 列表始终同步选中态：两个视图共用 state.selectedId，
+    // 切换模式时不应出现「一边高亮、一边没有」的断裂。
+    const idx = currentList().findIndex((x) => x.id === id);
+    if (idx >= 0) state.page = Math.floor(idx / PAGE_SIZE) + 1;
+    refreshList();
 
     if (state.mode === 'list') {
-      // 从其他视图（概览主脉 / 校验中心 / 检索结果）跳转过来时，目标可能不在当前页，
-      // 此处自动翻到其所在页，避免「详情已切换但列表无高亮」的断裂感。
-      const idx = currentList().findIndex((x) => x.id === id);
-      if (idx >= 0) state.page = Math.floor(idx / PAGE_SIZE) + 1;
-      refreshList();
       listHost.querySelector('.pitem.is-selected')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
-      // 树模式：展开目标及其全部祖先，确保节点可见
+      // 树模式：展开目标及其全部祖先，确保节点可见。
+      // 全展开时重建整树代价高，故先就地改选中态，节点不存在时才重建。
       for (const a of ancestorsOf(id, byId())) state.expanded.add(a.id);
       state.expanded.add(id);
-      renderTree();
+      if (!applyTreeSelection(id)) renderTree();
     }
 
     const aside = root.querySelector('.split__aside');
@@ -253,38 +310,43 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
     Array.from(seg.children).forEach((b) => b.classList.toggle('is-on', b === btn));
     listHost.hidden = mode !== 'list';
     treeHost.hidden = mode !== 'tree';
+    if (mode === 'tree') renderTree();
   }
 
   function refresh() {
-    filterBar.replaceWith(buildFilterBar());
+    rebuildFilterBar();
     refreshList();
     if (state.mode === 'tree') renderTree();
   }
 
-  function buildFilterBar() {
-    // 重建筛选条（清空筛选时同步 chip 状态）
-    const node = filterBar.cloneNode(false);
-    const body = h('div', { class: 'card__body', style: { display: 'flex', flexDirection: 'column', gap: '8px' } });
-    body.appendChild(chipSet('世代', Array.from({ length: 18 }, (_, i) => ({
-      key: i + 1, label: GEN_LABELS[i + 1], count: genCounts.get(i + 1) || 0,
-    })).filter((x) => x.count), state.gens, () => refreshList()));
-    body.appendChild(chipSet('支系', BRANCHES.filter((b) => branchCounts.get(b.id)).map((b) => ({
-      key: b.id, label: b.short, count: branchCounts.get(b.id) || 0,
-    })), state.branchIds, () => refreshList()));
-    node.appendChild(body);
+  /* ── 侧栏：人物档案 + 去处 ── */
+  function renderAside(person) {
+    const node = h('div', {}, renderDetail(person, { focusId: null }));
+    if (person) {
+      // 名录与谱系图是同一份数据的两种看法，一键互换；待核人物再给一条去校验中心的路
+      node.appendChild(h('div', { class: 'btn-row', style: { marginTop: '10px' } },
+        h('button', { class: 'btn btn--sm', onClick: () => onPick(person.id) }, '在谱系图中定位'),
+        h('button', { class: 'btn btn--sm', onClick: () => onNavigate('validate') }, '去校验中心')));
+    }
     return node;
   }
 
   root.append(toolbar, filterBar, h('div', { class: 'split' },
     h('div', {}, listHost, treeHost),
-    h('div', { class: 'split__aside' }, detailHost)));
+    h('div', { class: 'split__aside' }, detailHost)),
+  pageJump({
+    current: 'explore', onNavigate,
+    extra: [{ key: 'chart', hint: '在同一棵树上按世系关系浏览' }],
+    note: '「在谱系图中定位」可在图上高亮同一人',
+  }));
 
-  // 初始：默认展开始祖与二世
-  state.expanded = new Set(store.persons.filter((p) => p.gen <= 1).map((p) => p.id));
+  // 初始：默认「世系树」并展开全部世代（族谱先给全景，再让用户按需折叠）
+  state.expanded = new Set(store.persons.map((p) => p.id));
   refreshList();
   renderTree();
-  treeHost.hidden = true;
-  detailHost.replaceChildren(renderDetail(null, {}));
+  listHost.hidden = true;
+  treeHost.hidden = false;
+  detailHost.replaceChildren(renderAside(null));
 
   root.__select = select;
   root.__refreshAll = () => { refreshList(); if (state.mode === 'tree') renderTree(); };
@@ -303,7 +365,7 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
     state.onlyInferred = false;
     searchInput.value = state.query;
     switchMode('list', segButtons[0]);
-    filterBar.replaceWith(buildFilterBar());
+    rebuildFilterBar();
     refreshList();
   };
 
@@ -314,7 +376,23 @@ export function createExploreView(store, { auth, onPick, onEdit, onDelete, onAdd
     state.query = '';
     searchInput.value = '';
     switchMode('list', segButtons[0]);
-    filterBar.replaceWith(buildFilterBar());
+    rebuildFilterBar();
+    refreshList();
+  };
+
+  /**
+   * 外部（谱系图「待复核关系」跳转）只看规则推导出来的父子关系。
+   * 仍走列表模式：待核项是要逐条过目的清单，不是树。
+   */
+  root.__setInferred = () => {
+    state.onlyInferred = true;
+    state.page = 1;
+    state.query = '';
+    state.branchIds.clear();
+    state.gens.clear();
+    searchInput.value = '';
+    switchMode('list', segButtons[0]);
+    rebuildFilterBar();
     refreshList();
   };
 

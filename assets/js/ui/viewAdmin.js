@@ -6,10 +6,10 @@
 import { h, toast, modal, download, confirmDialog } from '../core/dom.js';
 import { PERM, PERM_LABELS, ROLES, Auth } from '../core/auth.js';
 import { SCHEMA_VERSION, GEN_LABELS } from '../core/schema.js';
-import { badge, card, emptyState, sectionHead, statCard } from './components.js';
+import { badge, card, emptyState, sectionHead, statCard, pageJump } from './components.js';
 import { requestRoleSwitch } from './roleGate.js';
 
-export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) {
+export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged, onNavigate }) {
   const root = h('div', { class: 'view' });
 
   /* ── 角色 ── */
@@ -196,6 +196,10 @@ export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) 
     auditHost,
     sectionHead('技术说明'),
     about,
+    pageJump({
+      current: 'admin', onNavigate,
+      note: '导出 JSON 归档后可跨设备迁移或提交服务端',
+    }),
   );
 
   renderAudit();
