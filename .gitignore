@@ -1,0 +1,29 @@
+# ── 本地开发期依赖（jsdom 等，仅用于自检，不入站）──
+node_modules/
+
+# ── 可重新生成的中间产物与备份 ──
+# genealogy.bak*.json 为建模调试期快照，可由 build_data.py 从 data/source/ 重放生成
+data/*.bak*.json
+data/*.bak-*.json
+
+# ── Office 临时/锁文件（~$ 前缀，Word/WPS 打开文档时产生）──
+~$*
+*.~*
+
+# ── 本地智能体工作记忆与会话状态（含本机绝对路径与对话日志，不入库）──
+.workbuddy-ai/
+
+# ── 系统与编辑器 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.vscode/
+.idea/
+*.code-workspace
+
+# ── 临时文件 ──
+*.tmp
+*.temp
+*.log

@@ -1,0 +1,24 @@
+# 统一换行符：入库一律 LF，检出时按平台自动转换。
+# 本仓库跨 Windows / macOS / Linux 协作，且含大量 JSON 与 Markdown，
+# 不做归一化会让 diff 充满整行变更。
+* text=auto eol=lf
+
+# ── 二进制：禁止换行转换与文本 diff ──
+*.xlsx  binary
+*.doc   binary
+*.docx  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+
+# ── 生成物：折叠进 diff 统计，避免刷屏 ──
+data/genealogy.json            linguist-generated=true
+data/validation-report.json    linguist-generated=true
+data/verification-report.json  linguist-generated=true
+data/intro.json                linguist-generated=true
+assets/js/data/seed.js         linguist-generated=true
+data/source/chart-raw.json     linguist-generated=true

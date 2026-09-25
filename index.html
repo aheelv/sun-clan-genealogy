@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>孙氏族谱 · 中秋</title>
+<meta name="description" content="孙氏族谱——以中秋为主题的静态族谱站点。世系图表与谱牒文献结构化呈现，支持增删改查、校验与权限管理。">
+<meta name="theme-color" content="#b5862b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='%23d8ab4e'/%3E%3Ccircle cx='22' cy='11' r='9' fill='%230c1220'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/theme.css">
+<link rel="stylesheet" href="assets/css/layout.css">
+<link rel="stylesheet" href="assets/css/components.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true">
+      <defs>
+        <radialGradient id="moonG" cx="38%" cy="34%" r="72%">
+          <stop offset="0%" stop-color="#f7e9c4"/>
+          <stop offset="55%" stop-color="#e0bc6c"/>
+          <stop offset="100%" stop-color="#b5862b"/>
+        </radialGradient>
+      </defs>
+      <circle cx="20" cy="20" r="15" fill="url(#moonG)" opacity="0.95"/>
+      <path d="M4 27c3.4-4.6 8.4-4.6 10.6-1.2 1.6 2.5 4.8 2.5 6.4 0C23.4 22.4 28.6 22.4 31 27"
+            fill="none" stroke="#a8382a" stroke-width="1.5" stroke-linecap="round" opacity="0.85"/>
+      <circle cx="20" cy="20" r="15" fill="none" stroke="#8a6114" stroke-width="0.8" opacity="0.5"/>
+    </svg>
+    <span class="brand__text">
+      <span class="brand__title">孙氏族谱</span>
+      <span class="brand__sub">MID-AUTUMN GENEALOGY</span>
+    </span>
+  </div>
+
+  <nav class="app-nav" id="nav" aria-label="主导航"></nav>
+
+  <div class="header-tools">
+    <span class="t-xs t-faint t-nowrap" id="rev-label"></span>
+    <button class="btn btn--sm" id="theme-toggle" title="切换配色">宣纸月华</button>
+    <select class="select" id="role-select" style="width:auto" title="切换当前角色" aria-label="角色"></select>
+  </div>
+</header>
+
+<main class="app-main" id="view-root"></main>
+
+<!-- 底部标签栏：小屏（≤760px）下取代顶部导航，拇指可达 -->
+<nav class="tabbar" id="tabbar" aria-label="底部导航"></nav>
+
+<footer class="app-footer">
+  <div>孙氏族谱 · 中秋主题静态族谱站点　<span class="dot">·</span>　数据源：《孙氏族谱.xlsx》世系图表 31 页、《孙氏族谱1.doc》谱牒文献</div>
+  <div style="margin-top:6px">
+    全部数据在浏览器本地存储，不上传服务器　<span class="dot">·</span>　
+    按 <kbd class="mono">/</kbd> 快速检索　<span class="dot">·</span>　
+    世系推导关系请在「校验中心」复核后确认
+  </div>
+</footer>
+
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

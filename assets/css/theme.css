@@ -1,0 +1,222 @@
+/* ============================================================
+   theme.css — 中秋主题设计令牌
+   ------------------------------------------------------------
+   两套配色：
+     宣纸月华（默认，浅色）—— 米宣纸底、墨字、金朱点缀
+     桂影夜宴（深色）      —— 夜空蓝、月华金、云纹星点
+   所有组件只消费变量，不写死颜色，保证换肤零成本。
+   ============================================================ */
+
+:root {
+  /* —— 中性：宣纸 —— */
+  --paper-0: #fdfaf3;
+  --paper-1: #f7f1e4;
+  --paper-2: #efe6d3;
+  --paper-3: #e3d6bc;
+  --line: #ded0b4;
+  --line-soft: #ebe0cb;
+
+  /* —— 墨 —— */
+  --ink-0: #221c15;
+  --ink-1: #3b3328;
+  --ink-2: #6b6151;
+  --ink-3: #9a8f7c;
+
+  /* —— 月华金 —— */
+  --gold-0: #8a6114;
+  --gold-1: #b5862b;
+  --gold-2: #d8ab4e;
+  --gold-3: #f0d38c;
+  --gold-wash: rgba(216, 171, 78, 0.13);
+
+  /* —— 朱砂 —— */
+  --cinnabar: #a8382a;
+  --cinnabar-soft: rgba(168, 56, 42, 0.1);
+
+  /* —— 玉青（竹/桂叶）—— */
+  --jade: #3f7a6a;
+  --jade-soft: rgba(63, 122, 106, 0.1);
+
+  /* —— 陶土（推导/待核）—— */
+  --clay: #a5703a;
+  --clay-soft: rgba(165, 112, 58, 0.12);
+
+  /* —— 语义 —— */
+  --bg: var(--paper-1);
+  --bg-elevated: var(--paper-0);
+  --bg-sunken: var(--paper-2);
+  --surface: #fffdf8;
+  --text: var(--ink-0);
+  --text-dim: var(--ink-2);
+  --text-faint: var(--ink-3);
+  --border: var(--line);
+  --border-soft: var(--line-soft);
+  --accent: var(--gold-1);
+  --accent-strong: var(--gold-0);
+  --focus: rgba(181, 134, 43, 0.35);
+
+  /* —— 尺寸 / 节奏 —— */
+  --r-xs: 4px;
+  --r-sm: 7px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  --shadow-sm: 0 1px 2px rgba(70, 55, 30, 0.06), 0 1px 1px rgba(70, 55, 30, 0.04);
+  --shadow-md: 0 4px 16px rgba(70, 55, 30, 0.08), 0 1px 3px rgba(70, 55, 30, 0.05);
+  --shadow-lg: 0 18px 48px rgba(50, 38, 18, 0.16);
+  --glow-moon: 0 0 0 1px rgba(216, 171, 78, 0.3), 0 0 40px rgba(216, 171, 78, 0.25);
+
+  --font-serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", "SimSun", "Georgia", serif;
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+
+  --maxw: 1320px;
+  --header-h: 64px;
+  /* 小屏底部标签栏高度（大屏不显示，仅用于小屏留白计算） */
+  --tabbar-h: 58px;
+
+  /* —— 背景纹样（云纹）—— */
+  --cloud-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23b5862b' stroke-opacity='0.16' stroke-width='1.1'%3E%3Cpath d='M12 84c6-9 17-9 22-2 4 6 12 6 16 0 5-7 16-7 21 2'/%3E%3Cpath d='M70 34c5-8 15-8 19-1 3 5 10 5 14 0 4-6 13-6 17 1'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* ============================================================
+   桂影夜宴（深色）
+   ============================================================ */
+[data-theme="dark"] {
+  --paper-0: #101728;
+  --paper-1: #0c1220;
+  --paper-2: #17203a;
+  --paper-3: #1f2b49;
+  --line: #2a3757;
+  --line-soft: #202c47;
+
+  --ink-0: #f2ead6;
+  --ink-1: #ddd2b8;
+  --ink-2: #a9a08a;
+  --ink-3: #7d7663;
+
+  --gold-0: #f0d79b;
+  --gold-1: #e3c076;
+  --gold-2: #cfa550;
+  --gold-3: #f7e9c4;
+  --gold-wash: rgba(227, 192, 118, 0.14);
+
+  --cinnabar: #e0715f;
+  --cinnabar-soft: rgba(224, 113, 95, 0.14);
+  --jade: #6fbfa6;
+  --jade-soft: rgba(111, 191, 166, 0.14);
+  --clay: #dba76c;
+  --clay-soft: rgba(219, 167, 108, 0.16);
+
+  --bg: var(--paper-1);
+  --bg-elevated: var(--paper-2);
+  --bg-sunken: #080d18;
+  --surface: #16203a;
+  --text: var(--ink-0);
+  --text-dim: var(--ink-2);
+  --text-faint: var(--ink-3);
+  --border: var(--line);
+  --border-soft: var(--line-soft);
+  --accent: var(--gold-1);
+  --accent-strong: var(--gold-0);
+  --focus: rgba(227, 192, 118, 0.4);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 22px 56px rgba(0, 0, 0, 0.6);
+  --glow-moon: 0 0 0 1px rgba(227, 192, 118, 0.35), 0 0 52px rgba(227, 192, 118, 0.3);
+  --cloud-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23e3c076' stroke-opacity='0.1' stroke-width='1.1'%3E%3Cpath d='M12 84c6-9 17-9 22-2 4 6 12 6 16 0 5-7 16-7 21 2'/%3E%3Cpath d='M70 34c5-8 15-8 19-1 3 5 10 5 14 0 4-6 13-6 17 1'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* ============================================================
+   基础重置与排版
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  background-image: var(--cloud-motif);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0;
+  line-height: 1.3;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.08rem; }
+h4 { font-size: 0.95rem; }
+
+p { margin: 0 0 0.85em; }
+
+a { color: var(--accent-strong); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+button { font: inherit; color: inherit; }
+
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+
+::selection { background: var(--gold-wash); }
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: content-box; }
+
+/* 文字工具类 */
+.t-serif { font-family: var(--font-serif); }
+.t-dim { color: var(--text-dim); }
+.t-faint { color: var(--text-faint); }
+.t-accent { color: var(--accent-strong); }
+.t-xs { font-size: 0.78rem; }
+.t-sm { font-size: 0.86rem; }
+.t-lg { font-size: 1.05rem; }
+.t-center { text-align: center; }
+.t-right { text-align: right; }
+.t-nowrap { white-space: nowrap; }
+.t-num { font-variant-numeric: tabular-nums; }
+
+/* 动效 */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes drift { 0% { transform: translateX(0); } 50% { transform: translateX(14px); } 100% { transform: translateX(0); } }
+@keyframes twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.8; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

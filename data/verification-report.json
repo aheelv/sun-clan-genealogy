@@ -1,0 +1,149 @@
+{
+ "generatedAt": "2026-09-25T12:38:59+08:00",
+ "method": "独立重算：不复用 tools/build_data.py 的任何代码，仅读 chart-raw.json 与 genealogy.json",
+ "checks": [
+  {
+   "code": "C01",
+   "title": "单元格往返（出处原文 = 原谱原文）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "核验 2154 条出处",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C02",
+   "title": "页码归属（出处页码 = 行号所在页）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "重建页面 31 页",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C03",
+   "title": "世代与列一致（人物世代 = 该列世代）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "核验 1517 处",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C04",
+   "title": "单元格全覆盖（每格恰好归属一次）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "非空单元格 2778 = 标题 31 + 表头 496 + 引用 2251 + 空白 1",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C05",
+   "title": "主干链闭合（主干行相邻格 = 父系链或过继链）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "独立重走主干行 32 条、相邻关系 108 处；其中 104 处为父系链、4 处为过继链",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C06",
+   "title": "文献链核对（《前言》明载 8 条父子）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C07",
+   "title": "启发式父系可解释性（父必落在独立候选或单一父块内）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "重算 946 处出现格；行最近直接命中 872 人，单一父块例外 11 人，无法解释 0 人",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C08",
+   "title": "父系属性一致（男/非配偶/世代+1/无环）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C09",
+   "title": "子女反向一致（childrenIds = 以我为父者）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C10",
+   "title": "配偶不变量（spouseOfId ↔ spouseIds 互斥且互为反向）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "",
+   "problems": [],
+   "knownGapCount": 4,
+   "knownGapReason": "原谱第 6 页 E326–H326 连续四格「万氏／宋氏／宫氏／崔氏」未记明夫主，属原谱留白；系统如实标注（V006 / V012 error）而不猜测归属。",
+   "knownGaps": [
+    "S0001「万氏」标记为配偶却无夫主",
+    "S0002「宋氏」标记为配偶却无夫主",
+    "S0003「宫氏」标记为配偶却无夫主",
+    "S0004「崔氏」标记为配偶却无夫主"
+   ]
+  },
+  {
+   "code": "C11",
+   "title": "计数守恒（统计字段 = 实算值）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "非空 2778 = 标题 31 + 表头 496 + 人物 2154 + 旁注 97；出处引用 2154 条",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  },
+  {
+   "code": "C12",
+   "title": "凡字独立重算（第 6–15 世主干男丁）",
+   "pass": true,
+   "problemCount": 0,
+   "detail": "符合 837/865 = 96.8%",
+   "problems": [],
+   "knownGapCount": 0,
+   "knownGapReason": null,
+   "knownGaps": []
+  }
+ ],
+ "summary": {
+  "total": 12,
+  "passed": 12,
+  "failed": 0,
+  "knownGapTotal": 4
+ }
+}

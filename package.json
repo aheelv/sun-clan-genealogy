@@ -1,0 +1,17 @@
+{
+  "name": "sun-clan-genealogy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "孙氏族谱 · 中秋主题静态族谱站点（无构建步骤；package.json 仅用于 Node 侧工具与自检脚本）",
+  "scripts": {
+    "extract": "python tools/extract_xlsx.py && python tools/extract_doc.py",
+    "build:data": "python tools/build_data.py && python tools/emit_seed.py",
+    "verify": "python tools/verify_data.py --strict",
+    "check:imports": "node tools/check_imports.mjs",
+    "test:logic": "node tools/smoke_test.mjs",
+    "test:render": "node tools/render_test.mjs",
+    "test": "python tools/verify_data.py --strict && node tools/check_imports.mjs && node tools/smoke_test.mjs && node tools/render_test.mjs",
+    "serve": "node tools/serve.mjs"
+  }
+}
