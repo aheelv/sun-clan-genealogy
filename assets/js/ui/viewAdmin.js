@@ -7,6 +7,7 @@ import { h, toast, modal, download, confirmDialog } from '../core/dom.js';
 import { PERM, PERM_LABELS, ROLES, Auth } from '../core/auth.js';
 import { SCHEMA_VERSION, GEN_LABELS } from '../core/schema.js';
 import { badge, card, emptyState, sectionHead, statCard } from './components.js';
+import { requestRoleSwitch } from './roleGate.js';
 
 export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) {
   const root = h('div', { class: 'view' });
@@ -19,11 +20,13 @@ export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) 
         class: 'card',
         style: { cursor: 'pointer', borderColor: on ? 'var(--accent)' : undefined, boxShadow: on ? 'var(--shadow-md)' : undefined },
         onClick: () => {
-          auth.setRole(r.key);
-          store.saveRole(r.key);
-          onRoleChange(r.key);
-          toast(`已切换为「${r.label}」`, 'ok');
-          rerender();
+          requestRoleSwitch(auth, r.key, (role) => {
+            auth.setRole(role);
+            store.saveRole(role);
+            onRoleChange(role);
+            toast(`已切换为「${r.label}」`, 'ok');
+            rerender();
+          });
         },
       },
       h('div', { class: 'card__body' },
@@ -132,7 +135,10 @@ export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) 
       h('dt', {}, '持久化'), h('dd', {}, 'localStorage，含 schemaVersion 与修订号；导出 JSON 作为长期归档'),
       h('dt', {}, '数据流'), h('dd', {}, 'xlsx/doc → extract_*.py → build_data.py → genealogy.json → emit_seed.py → seed.js → Store'),
       h('dt', {}, '可扩展'), h('dd', {}, '新增字段改 schema.js 即可全站生效；新增校验规则改 validate.js 注册表；'
-        + '若接后端，只需替换 Store 的持久化实现，视图层无需改动')),
+        + '若接后端，只需替换 Store 的持久化实现，视图层无需改动'),
+      h('dt', {}, '口令闸门'), h('dd', {}, '切到非访客角色需口令（访客免）。口令为前端常量（core/auth.js 的 '
+        + 'ACCESS_PASSWORD），随代码下发、可在控制台绕过，**仅防误操作与好奇浏览，不是访问控制**；'
+        + '真正的权限校验须放到服务端 API 层')),
     h('div', { style: { marginTop: '12px' } },
       h('div', { class: 'field__label', style: { marginBottom: '6px' } }, '源文件指纹（SHA-256）'),
       h('div', { class: 'refs' }, ...(seed.meta.sourceManifest || []).map((x) => h('span', { class: 'ref-cell', title: x.sha256 },
@@ -152,7 +158,15 @@ export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) 
         return h('div', {
           class: 'card',
           style: { cursor: 'pointer', borderColor: on ? 'var(--accent)' : undefined },
-          onClick: () => { auth.setRole(r.key); store.saveRole(r.key); onRoleChange(r.key); rerender(); toast(`已切换为「${r.label}」`, 'ok'); },
+          onClick: () => {
+            requestRoleSwitch(auth, r.key, (role) => {
+              auth.setRole(role);
+              store.saveRole(role);
+              onRoleChange(role);
+              rerender();
+              toast(`已切换为「${r.label}」`, 'ok');
+            });
+          },
         }, h('div', { class: 'card__body' },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
             h('h3', { class: 't-serif' }, r.label),
@@ -171,7 +185,8 @@ export function renderAdmin(store, { auth, seed, onRoleChange, onDataChanged }) 
         h('p', { class: 'hero__lead' },
           '本谱采用四角色 RBAC 模型：访客只读、编修可增改、族老可删改并导入、管理员拥有全部权限。'
           + '所有写操作均写入审计日志。'))),
-    sectionHead('角色切换', h('span', { class: 't-sm t-faint' }, '当前会话立即生效，选择会保存在本地')),
+    sectionHead('角色切换', h('span', { class: 't-sm t-faint' },
+      '「访客」免口令；切换到其他角色需输入口令，通过后本会话内有效，刷新页面即重新上锁')),
     roleCards,
     sectionHead('权限矩阵'),
     card(null, matrixTable),

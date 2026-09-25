@@ -105,9 +105,11 @@ for (const prop of ['clientWidth', 'clientHeight']) {
 /* ── 2. 启动应用 ──────────────────────────────────────── */
 section('启动与首屏');
 let app;
+let authMod;
 try {
   app = await import(pathToFileURL(join(ROOT, 'assets', 'js', 'app.js')).href);
   ok(true, 'app.js 导入并执行 boot() 无异常');
+  authMod = await import(pathToFileURL(join(ROOT, 'assets', 'js', 'core', 'auth.js')).href);
 } catch (e) {
   ok(false, 'app.js 导入失败', `\n      ${e.stack?.split('\n').slice(0, 3).join('\n      ')}`);
   console.log(`\n  渲染自检中断：通过 ${pass}，失败 ${fail}\n`);
@@ -426,6 +428,77 @@ app.pick(shicong.id, { view: 'explore' });
 await tick();
 ok(btnNamed('删除')?.disabled === false, '管理员角色：删除按钮可用');
 app.auth.setRole('guest');
+
+/* ── 8b. 角色口令闸门 ─────────────────────────────────── */
+/* 访客免口令；切到任何非访客角色都须输入口令。闸门位于 UI 入口
+   （ui/roleGate.js），auth.setRole 仍是不过闸的低层原语——上面 8 节正因如此
+   才能直接调它。本节的目的是锁住「界面入口不能绕过口令」这一约定。 */
+section('角色口令闸门');
+const { Auth } = authMod;
+const gateOverlay = () => document.querySelector('.modal-overlay');
+const gateInput = () => document.querySelector('.modal-overlay .modal__body input');
+const gateErr = () => document.querySelector('.modal-overlay .field__error');
+const gateBtn = (label) => [...document.querySelectorAll('.modal-overlay .modal__footer button')]
+  .find((b) => b.textContent.trim() === label);
+const switchTo = async (key) => {
+  roleSel.value = key;
+  roleSel.dispatchEvent(new window.Event('change'));
+  await tick();
+};
+
+Auth.lockSession();
+app.auth.setRole('guest');
+await tick();
+
+await switchTo('admin');
+ok(!!gateOverlay(), '切到「管理员」时弹出需口令对话框');
+ok(app.auth.role === 'guest', `口令未通过前角色仍为访客（实际 ${app.auth.role}）`);
+ok(roleSel.value === 'guest', '下拉框复位为当前角色，不停留在未授权项');
+
+gateInput().value = '000000';
+gateBtn('确定').click();
+await tick();
+ok(!!gateOverlay(), '口令错误时对话框保持打开');
+ok(app.auth.role === 'guest', '口令错误时角色不变');
+ok(/不正确/.test(gateErr()?.textContent || ''), '给出「口令不正确」提示');
+
+gateInput().value = '888888';
+gateBtn('确定').click();
+await tick();
+ok(!gateOverlay(), '口令正确后对话框自动关闭');
+ok(app.auth.role === 'admin', `口令正确后切换到管理员（实际 ${app.auth.role}）`);
+
+await switchTo('guest');
+ok(!gateOverlay(), '切回「访客」不弹口令框（访客免口令）');
+ok(app.auth.role === 'guest', '切回访客立即生效');
+ok(Auth.isUnlocked() === false, '回到访客后本会话解锁标记被清除');
+
+await switchTo('editor');
+ok(!!gateOverlay(), '回到访客后再切非访客，重新要求口令');
+gateBtn('取消').click();
+await tick();
+ok(app.auth.role === 'guest', '取消后仍为访客');
+ok(!gateOverlay(), '取消后对话框关闭');
+
+/* 本会话内已解锁后，非访客之间互切不再重复索要口令 */
+await switchTo('elder');
+gateInput().value = '888888';
+gateBtn('确定').click();
+await tick();
+ok(app.auth.role === 'elder', '口令通过后进入族老');
+await switchTo('admin');
+ok(!gateOverlay(), '同一会话内已解锁，非访客之间互切不再弹口令框');
+ok(app.auth.role === 'admin', `互切到管理员（实际 ${app.auth.role}）`);
+
+/* 启动时不得凭本地持久化的角色直接进入：模拟「存过 admin 但本会话未解锁」 */
+Auth.lockSession();
+ok(Auth.restoreRole('admin') === 'guest', '本会话未解锁时，持久化的 admin 被回落为访客');
+Auth.unlockSession();
+ok(Auth.restoreRole('admin') === 'admin', '本会话已解锁时，持久化的 admin 可被恢复');
+ok(Auth.restoreRole('guest') === 'guest', '持久化为访客时始终回落访客');
+Auth.lockSession();
+app.auth.setRole('guest');
+await tick();
 
 /* ── 9. 主题切换 ───────────────────────────────────────── */
 section('主题切换');

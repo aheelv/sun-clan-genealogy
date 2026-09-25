@@ -20,9 +20,12 @@ import { createExploreView } from './ui/viewExplore.js';
 import { renderDocs } from './ui/viewDocs.js';
 import { renderValidate } from './ui/viewValidate.js';
 import { renderAdmin } from './ui/viewAdmin.js';
+import { requestRoleSwitch } from './ui/roleGate.js';
 
 const store = createStore(SEED);
-const auth = new Auth(store.loadRole());
+/* 持久化的角色仅作「上次选择」的提示，不作为授权依据：
+ * 非访客角色必须在本会话内通过口令后才会被恢复，否则一律回落「访客」。 */
+const auth = new Auth(Auth.restoreRole(store.loadRole()));
 
 /* ── 视图注册表 ─────────────────────────────────────────── */
 /* 「概览」置于首位并作为默认落点：进入站点先给出全谱概貌与导航；
@@ -217,10 +220,15 @@ function buildRoleSelect() {
   for (const r of Object.values(ROLES)) roleSelect.appendChild(h('option', { value: r.key }, r.label));
   roleSelect.value = auth.role;
   roleSelect.onchange = () => {
-    auth.setRole(roleSelect.value);
-    store.saveRole(roleSelect.value);
-    toast(`已切换为「${ROLES[roleSelect.value].label}」`, 'ok');
-    syncRoleUI(roleSelect.value);
+    const target = roleSelect.value;
+    // 先复位显示：口令未通过时下拉框不应停在未授权的角色上
+    roleSelect.value = auth.role;
+    requestRoleSwitch(auth, target, (role) => {
+      auth.setRole(role);
+      store.saveRole(role);
+      toast(`已切换为「${ROLES[role].label}」`, 'ok');
+      syncRoleUI(role);
+    });
   };
 }
 
